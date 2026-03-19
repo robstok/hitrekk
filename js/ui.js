@@ -6,11 +6,13 @@
 import { processGPXFile, removeRoute, toggleRouteVisibility, setActiveRoute, getAllRoutes, getActiveRoute } from './routes.js';
 import { renderElevationChart, syncChartToMapHover, clearHoverState } from './elevation.js';
 import { setHikingLayerVisible, setSatelliteVisible, set3DMode, getMap, getHitLayerIds, updateMapHoverPoint } from './map.js';
+import { loadPhotos, getPhotosForRoute, showLightbox } from './photos.js';
 
 /** Initialise all UI event bindings. Call once on startup. */
 export function initUI() {
   setupDropzone();
   setupFileInput();
+  setupPhotoInput();
   setupLayerToggle();
   setupMobileMenu();
   setupMapHover();
@@ -39,20 +41,25 @@ function setupDropzone() {
     }
   });
 
-  window.addEventListener('drop', e => {
+  window.addEventListener('drop', async e => {
     e.preventDefault();
     if (overlay) overlay.classList.add('hidden');
 
-    const files = [...(e.dataTransfer?.files ?? [])].filter(f =>
-      f.name.toLowerCase().endsWith('.gpx')
-    );
+    const all    = [...(e.dataTransfer?.files ?? [])];
+    const gpxs   = all.filter(f => f.name.toLowerCase().endsWith('.gpx'));
+    const images = all.filter(f => f.type.startsWith('image/'));
 
-    if (files.length === 0) {
-      showToast('Please drop a .gpx file', 'error');
+    if (gpxs.length === 0 && images.length === 0) {
+      showToast('Please drop a .gpx file or photos', 'error');
       return;
     }
 
-    files.forEach(f => handleFile(f));
+    gpxs.forEach(f => handleFile(f));
+
+    if (images.length > 0) {
+      const added = await loadPhotos(images);
+      if (added > 0) showToast(`${added} photo${added === 1 ? '' : 's'} added`, 'success');
+    }
   });
 
   // Dropzone div hover state
@@ -89,6 +96,28 @@ function setupFileInput() {
     files.forEach(f => handleFile(f));
     // Reset so the same file can be loaded again
     input.value = '';
+  });
+}
+
+// ── Photo upload ────────────────────────────────────────────────
+
+function setupPhotoInput() {
+  const btn   = document.getElementById('photo-btn');
+  const input = document.getElementById('photo-input');
+  if (!btn || !input) return;
+
+  btn.addEventListener('click', () => input.click());
+
+  input.addEventListener('change', async e => {
+    const files = [...(e.target.files ?? [])];
+    if (!files.length) return;
+    input.value = '';
+    const added = await loadPhotos(files);
+    if (added === 0) {
+      showToast('No photos with location data found', 'error');
+    } else {
+      showToast(`${added} photo${added === 1 ? '' : 's'} added`, 'success');
+    }
   });
 }
 
@@ -207,6 +236,12 @@ function _findNearestPointIndex(coords, lng, lat) {
 // ── Route events ────────────────────────────────────────────────
 
 function setupRouteEvents() {
+  window.addEventListener('photos:updated', e => {
+    const activeRoute = getActiveRoute();
+    if (activeRoute && activeRoute.id === e.detail?.routeId) {
+      renderRouteStats(activeRoute);
+    }
+  });
   window.addEventListener('route:added', () => {
     _rebuildRouteList();
     _updateEmptyState();
@@ -455,6 +490,18 @@ export function renderRouteStats(route) {
     `;
   }
 
+  const photos = getPhotosForRoute(route.id);
+  const photosHtml = photos.length > 0 ? `
+    <div class="stats-section-label" style="margin-top: 8px">Photos</div>
+    <div class="photo-strip" id="photo-strip-${route.id}">
+      ${photos.map(p => `
+        <button class="photo-thumb" data-url="${p.url}" data-name="${_escHtml(p.name)}" title="${_escHtml(p.name)}">
+          <img src="${p.url}" alt="${_escHtml(p.name)}">
+        </button>
+      `).join('')}
+    </div>
+  ` : '';
+
   panel.innerHTML = `
     <div class="section-title">
       <span style="color: ${route.color}">${_escHtml(route.name)}</span>
@@ -489,8 +536,13 @@ export function renderRouteStats(route) {
         ` : ''}
       </div>
       ${speedHtml}
+      ${photosHtml}
     </div>
   `;
+
+  panel.querySelectorAll('.photo-thumb').forEach(btn => {
+    btn.addEventListener('click', () => showLightbox(btn.dataset.url, btn.dataset.name));
+  });
 }
 
 function _clearStatsPanel() {
