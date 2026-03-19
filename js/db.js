@@ -3,6 +3,7 @@
  */
 
 import { supabaseClient as sb } from './supabase.js';
+import { CONFIG } from './config.js';
 
 export async function saveRoute(id, userId, name, color, gpxContent, stats = null, hikeDate = null) {
   const row = { id, user_id: userId, name, color, gpx_content: gpxContent };
@@ -70,8 +71,27 @@ export async function fetchUserRoutes() {
 // ── Photo storage ─────────────────────────────────────────────────
 
 export async function uploadPhotoFile(storagePath, file) {
-  const { error } = await sb.storage.from('photos').upload(storagePath, file, { upsert: true });
-  if (error) throw new Error(`Storage: ${error.message}`);
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) throw new Error('Storage: not authenticated');
+
+  const res = await fetch(
+    `${CONFIG.SUPABASE_URL}/storage/v1/object/photos/${storagePath}`,
+    {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        'apikey': CONFIG.SUPABASE_ANON_KEY,
+        'x-upsert': 'true',
+        'Content-Type': file.type || 'application/octet-stream',
+      },
+      body: file,
+    }
+  );
+
+  if (!res.ok) {
+    const body = await res.json().catch(() => ({ message: res.statusText }));
+    throw new Error(`Storage: ${body.message ?? res.statusText}`);
+  }
 }
 
 export function getPhotoPublicUrl(storagePath) {
