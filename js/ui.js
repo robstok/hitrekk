@@ -58,7 +58,7 @@ function setupDropzone() {
     gpxs.forEach(f => handleFile(f));
 
     if (images.length > 0) {
-      const added = await loadPhotos(images);
+      const { added } = await loadPhotos(images);
       if (added > 0) showToast(`${added} photo${added === 1 ? '' : 's'} added`, 'success');
     }
   });
@@ -113,9 +113,13 @@ function setupPhotoInput() {
     const files = [...(e.target.files ?? [])];
     if (!files.length) return;
     input.value = '';
-    const added = await loadPhotos(files);
-    if (added === 0) {
-      showToast('No photos with location data found', 'error');
+    const { added, noGps } = await loadPhotos(files);
+    if (added === 0 && noGps > 0) {
+      showToast(`${noGps} photo${noGps === 1 ? '' : 's'} had no GPS data — cannot place on map`, 'error');
+    } else if (added === 0) {
+      showToast('No supported photos found', 'error');
+    } else if (noGps > 0) {
+      showToast(`${added} photo${added === 1 ? '' : 's'} added (${noGps} had no GPS)`, 'info');
     } else {
       showToast(`${added} photo${added === 1 ? '' : 's'} added`, 'success');
     }

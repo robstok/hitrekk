@@ -21,19 +21,29 @@ export function getPhotosForRoute(routeId) {
  * add map markers. Returns the number successfully added.
  */
 export async function loadPhotos(files) {
-  let added = 0;
+  let added = 0, noGps = 0;
+
+  const imageExts = /\.(jpe?g|png|gif|webp|heic|heif|tiff?|avif)$/i;
 
   for (const file of files) {
-    if (!file.type.startsWith('image/')) continue;
+    const isImage = file.type.startsWith('image/') || imageExts.test(file.name);
+    if (!isImage) continue;
 
     try {
       let lat = null, lon = null, time = null;
 
-      if (window.exifr) {
+      if (window.exifr?.parse) {
         const exif = await window.exifr.parse(file, { gps: true, pick: ['DateTimeOriginal'] });
         lat  = exif?.latitude  ?? null;
         lon  = exif?.longitude ?? null;
         time = exif?.DateTimeOriginal instanceof Date ? exif.DateTimeOriginal : null;
+      } else {
+        throw new Error('EXIF library not loaded — refresh the page and try again');
+      }
+
+      if (lat === null || lon === null) {
+        noGps++;
+        continue;
       }
 
       const url     = URL.createObjectURL(file);
@@ -41,19 +51,17 @@ export async function loadPhotos(files) {
       const photo   = { id: crypto.randomUUID(), url, lat, lon, time, routeId, name: file.name };
 
       _photos.push(photo);
-
-      if (lat !== null && lon !== null) {
-        _addMapMarker(photo);
-      }
+      _addMapMarker(photo);
 
       added++;
       window.dispatchEvent(new CustomEvent('photos:updated', { detail: { routeId } }));
     } catch (err) {
       console.warn('Failed to process photo:', file.name, err);
+      window.dispatchEvent(new CustomEvent('app:error', { detail: err.message }));
     }
   }
 
-  return added;
+  return { added, noGps };
 }
 
 /** Remove all photos for a route and clean up markers + object URLs. */
