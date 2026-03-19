@@ -31,7 +31,7 @@ export const CONFIG = {
 
   // ── Speed analytics ───────────────────────────────────────
   MIN_MOVING_SPEED_KMH:   0.8,   // below this = not moving
-  REST_THRESHOLD_METRES:  10,    // max movement to still count as rest
+  REST_THRESHOLD_METRES:  50,    // max movement to still count as rest (GPS drift on a stationary stop)
   REST_MIN_SECONDS:       120,   // must be stopped this long to count as rest
   SPEED_SMOOTH_WINDOW:    5,     // rolling average window for speed
 

@@ -103,22 +103,32 @@ export async function loadSavedRoutes() {
   for (const row of saved) {
     const route = await _processGPXText(row.gpx_content, row.id, row.color);
 
-    // Backfill stats for routes saved before the stats migration
-    if (!row.stats && user) {
-      const stats = {
+    // Always recompute and persist stats so stale/missing values are corrected.
+    if (user) {
+      const fresh = {
         totalDist:   route.totalDist ?? 0,
         elevGain:    route.elevGain ?? 0,
         movTimeSec:  route.speed?.movTimeSec ?? 0,
         rstTimeSec:  route.speed?.rstTimeSec ?? 0,
         maxSpeedKmh: route.speed?.maxSpeed ?? 0,
       };
-      const firstTime = route.points.find(p => p.time)?.time;
-      const hikeDate  = firstTime
-        ? firstTime.toISOString().split('T')[0]
-        : (row.created_at?.split('T')[0] ?? new Date().toISOString().split('T')[0]);
+      const stored = row.stats ?? {};
+      const needsUpdate =
+        !row.stats ||
+        stored.rstTimeSec !== fresh.rstTimeSec ||
+        stored.movTimeSec !== fresh.movTimeSec ||
+        stored.totalDist  !== fresh.totalDist;
 
-      saveRoute(row.id, user.id, row.name, row.color, row.gpx_content, stats, hikeDate)
-        .catch(err => console.warn('Failed to backfill route stats:', err));
+      if (needsUpdate) {
+        const firstTime = route.points.find(p => p.time)?.time;
+        const hikeDate  = row.hike_date
+          ?? (firstTime
+            ? firstTime.toISOString().split('T')[0]
+            : (row.created_at?.split('T')[0] ?? new Date().toISOString().split('T')[0]));
+
+        saveRoute(row.id, user.id, row.name, row.color, row.gpx_content, fresh, hikeDate)
+          .catch(err => console.warn('Failed to update route stats:', err));
+      }
     }
   }
 }
