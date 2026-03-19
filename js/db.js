@@ -10,7 +10,17 @@ export async function saveRoute(id, userId, name, color, gpxContent, stats = nul
   if (hikeDate !== null) row.hike_date = hikeDate;
 
   const { error } = await sb.from('routes').upsert(row);
-  if (error) throw error;
+
+  if (error) {
+    // stats/hike_date columns may not exist yet — retry with core columns only
+    if (error.message?.includes('hike_date') || error.message?.includes('stats') || error.message?.includes('schema cache')) {
+      const coreRow = { id, user_id: userId, name, color, gpx_content: gpxContent };
+      const { error: err2 } = await sb.from('routes').upsert(coreRow);
+      if (err2) throw err2;
+      return;
+    }
+    throw error;
+  }
 }
 
 export async function deleteRoute(id) {
