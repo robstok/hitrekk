@@ -5,7 +5,7 @@
 
 import { processGPXFile, removeRoute, toggleRouteVisibility, setActiveRoute, getAllRoutes, getActiveRoute } from './routes.js';
 import { renderElevationChart, syncChartToMapHover, clearHoverState } from './elevation.js';
-import { setHikingLayerVisible, set3DMode, getMap, getHitLayerIds, updateMapHoverPoint } from './map.js';
+import { setHikingLayerVisible, setSatelliteVisible, set3DMode, getMap, getHitLayerIds, updateMapHoverPoint } from './map.js';
 
 /** Initialise all UI event bindings. Call once on startup. */
 export function initUI() {
@@ -106,6 +106,13 @@ function setupLayerToggle() {
   if (terrainToggle) {
     terrainToggle.addEventListener('change', e => {
       set3DMode(e.target.checked);
+    });
+  }
+
+  const satelliteToggle = document.getElementById('satellite-layer-toggle');
+  if (satelliteToggle) {
+    satelliteToggle.addEventListener('change', e => {
+      setSatelliteVisible(e.target.checked);
     });
   }
 }
@@ -325,7 +332,8 @@ function _buildRouteItem(route) {
       <div class="route-actions">
         <button class="btn-zoom" title="Zoom to route">
           <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+            <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/>
+            <circle cx="12" cy="9" r="2.5"/>
           </svg>
         </button>
         <button class="btn-toggle-vis" title="${route.visible ? 'Hide' : 'Show'} route">
@@ -348,6 +356,8 @@ function _buildRouteItem(route) {
   // Event bindings
   item.addEventListener('click', () => {
     setActiveRoute(route.id);
+    const r = getAllRoutes().find(r => r.id === route.id);
+    if (r) import('./map.js').then(({ fitBounds }) => fitBounds(r.bounds));
   });
 
   item.querySelector('.btn-zoom')?.addEventListener('click', e => {

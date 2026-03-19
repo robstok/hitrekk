@@ -32,6 +32,7 @@ export function initMap(containerId) {
 }
 
 let _is3D = false;
+let _isSatellite = false;
 
 function _onStyleLoad() {
   // 3D terrain DEM (loaded but not activated by default — starts in 2D mode)
@@ -54,6 +55,22 @@ function _onStyleLoad() {
       'hillshade-highlight-color': 'rgba(255,255,255,0.15)',
       'hillshade-illumination-direction': 315,
     },
+  });
+
+  // Satellite imagery (ESRI World Imagery — free, no API key)
+  _map.addSource('satellite', {
+    type: 'raster',
+    tiles: ['https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}'],
+    tileSize: 256,
+    attribution: 'Tiles © Esri — Source: Esri, Maxar, GeoEye, Earthstar Geographics, CNES/Airbus DS, USDA, USGS, AeroGRID, IGN',
+    maxzoom: 18,
+  });
+
+  _map.addLayer({
+    id: 'satellite-layer',
+    type: 'raster',
+    source: 'satellite',
+    layout: { visibility: 'none' },
   });
 
   // OSM raster base map — visible in 2D mode, hidden in 3D mode
@@ -278,9 +295,21 @@ export function set3DMode(enable) {
   } else {
     _map.setTerrain(null);
     _map.setLayoutProperty('hillshade', 'visibility', 'none');
-    _map.setLayoutProperty('osm-base-layer', 'visibility', 'visible');
+    // Restore OSM base only if satellite is off
+    if (!_isSatellite) {
+      _map.setLayoutProperty('osm-base-layer', 'visibility', 'visible');
+    }
     _map.easeTo({ pitch: 0, duration: 600 });
   }
+}
+
+/** Show or hide the satellite imagery layer. */
+export function setSatelliteVisible(enable) {
+  if (!_mapReady) return;
+  _isSatellite = enable;
+  _map.setLayoutProperty('satellite-layer', 'visibility', enable ? 'visible' : 'none');
+  // Hide OSM base when satellite is on (satellite replaces it)
+  _map.setLayoutProperty('osm-base-layer', 'visibility', enable || _is3D ? 'none' : 'visible');
 }
 
 /** Return whether the map is currently in 3D mode. */
