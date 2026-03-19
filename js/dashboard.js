@@ -1,15 +1,10 @@
 /**
  * Dashboard — fetches per-route stats from Supabase and renders
- * an aggregate view with a period picker.
+ * an aggregate view (all-time).
  */
 
 import { fetchAllRouteStats } from './db.js';
-import { aggregateStats, filterByPeriod, fmtDur } from './dashboard-logic.js';
-
-// Default to all_time so hikes from any year are visible immediately.
-let _currentPeriod = 'all_time';
-let _customFrom = null;
-let _customTo = null;
+import { aggregateStats, fmtDur } from './dashboard-logic.js';
 
 // ── Public API ──────────────────────────────────────────────────
 
@@ -45,50 +40,7 @@ async function render() {
   const body = document.getElementById('dash-body');
   if (!body) return;
 
-  body.innerHTML = `
-    <div class="dash-period-row">
-      <select id="dash-period" class="dash-period-select">
-        <option value="all_time">All Time</option>
-        <option value="this_year">This Year</option>
-        <option value="last_year">Last Year</option>
-        <option value="past_30">Past 30 Days</option>
-        <option value="past_90">Past 90 Days</option>
-        <option value="custom">Custom Range</option>
-      </select>
-    </div>
-    <div id="dash-custom-range" class="dash-custom-range" style="display:none; margin-bottom: 14px;">
-      <input type="date" id="dash-from" class="dash-date-input">
-      <span>–</span>
-      <input type="date" id="dash-to" class="dash-date-input">
-    </div>
-    <div id="dash-stats-content"><div class="dash-loading">Loading…</div></div>
-  `;
-
-  const periodEl = document.getElementById('dash-period');
-  periodEl.value = _currentPeriod;
-
-  if (_currentPeriod === 'custom') {
-    document.getElementById('dash-custom-range').style.display = 'flex';
-    if (_customFrom) document.getElementById('dash-from').value = _customFrom;
-    if (_customTo)   document.getElementById('dash-to').value   = _customTo;
-  }
-
-  periodEl.addEventListener('change', () => {
-    _currentPeriod = periodEl.value;
-    document.getElementById('dash-custom-range').style.display =
-      _currentPeriod === 'custom' ? 'flex' : 'none';
-    if (_currentPeriod !== 'custom') _refreshStats();
-  });
-
-  document.getElementById('dash-from')?.addEventListener('change', e => {
-    _customFrom = e.target.value || null;
-    if (_customTo) _refreshStats();
-  });
-
-  document.getElementById('dash-to')?.addEventListener('change', e => {
-    _customTo = e.target.value || null;
-    if (_customFrom) _refreshStats();
-  });
+  body.innerHTML = `<div id="dash-stats-content"><div class="dash-loading">Loading…</div></div>`;
 
   await _refreshStats();
 }
@@ -101,8 +53,7 @@ async function _refreshStats() {
 
   try {
     const all    = await fetchAllRouteStats();
-    const routes = filterByPeriod(all, _currentPeriod, _customFrom, _customTo);
-    const agg    = aggregateStats(routes);
+    const agg    = aggregateStats(all);
 
     const badge = document.getElementById('dash-hike-badge');
     if (badge) {
@@ -117,9 +68,9 @@ async function _refreshStats() {
             <path d="M3 17l5-8 4 6 3-4 5 6H3z"/>
             <circle cx="18" cy="6" r="2"/>
           </svg>
-          <p>No hikes in this period</p>
+          <p>No hikes yet</p>
         </div>`
-      : _buildStatsHtml(agg, routes.length);
+      : _buildStatsHtml(agg);
 
   } catch (err) {
     console.error('Dashboard fetch error:', err);
@@ -127,7 +78,8 @@ async function _refreshStats() {
   }
 }
 
-function _buildStatsHtml(agg, hikeCount) {
+function _buildStatsHtml(agg) {
+  const hikeCount = agg.hikeCount;
   const { totalDistKm, totalMovSec, totalRstSec, maxSpeedKmh, maxSpeedName, longestKm, longestName } = agg;
 
   const distStr  = totalDistKm >= 1000
