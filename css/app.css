@@ -1048,6 +1048,11 @@ input[type="checkbox"][role="switch"]:checked::before {
     --sidebar-w: 0px;
   }
 
+  /* Sidebar leaves the grid (position:fixed), so map-container must fill the full column */
+  #app {
+    grid-template-columns: 1fr;
+  }
+
   #sidebar {
     position: fixed;
     left: -280px;
@@ -1241,6 +1246,36 @@ input[type="checkbox"][role="switch"]:checked::before {
 
 /* ── Inline edit controls ─────────────────────────────────────── */
 
+.route-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+
+.route-name-row .route-name-display {
+  font-size: 13px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.btn-rename {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-2);
+  padding: 3px 5px;
+  display: flex;
+  align-items: center;
+  transition: border-color 0.15s, color 0.15s;
+}
+.btn-rename:hover { border-color: var(--accent); color: var(--accent); }
+
 .btn-edit-inline {
   background: none;
   border: none;
@@ -1249,23 +1284,10 @@ input[type="checkbox"][role="switch"]:checked::before {
   font-size: 11px;
   padding: 0 2px;
   line-height: 1;
-  opacity: 0.5;
+  opacity: 0.6;
   transition: opacity 0.15s;
 }
 .btn-edit-inline:hover { opacity: 1; }
-
-.btn-rename {
-  font-size: 13px;
-  margin-left: 6px;
-  flex-shrink: 0;
-}
-
-.section-title .route-name-display {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  flex: 1;
-}
 
 .inline-edit-input {
   background: var(--bg-card);
@@ -1278,6 +1300,7 @@ input[type="checkbox"][role="switch"]:checked::before {
   outline: none;
   min-width: 0;
   flex: 1;
+  width: 100%;
 }
 .inline-edit-input:focus { box-shadow: 0 0 0 2px var(--accent-dim); }
 

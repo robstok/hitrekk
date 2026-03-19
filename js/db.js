@@ -30,7 +30,11 @@ export async function updateRouteName(id, name) {
 
 export async function updateRouteStats(id, stats) {
   const { error } = await sb.from('routes').update({ stats }).eq('id', id);
-  if (error) throw error;
+  if (error) {
+    // stats column may not exist yet — silently skip rather than breaking the UI
+    if (error.message?.includes('stats') || error.message?.includes('schema cache')) return;
+    throw error;
+  }
 }
 
 export async function deleteRoute(id) {
