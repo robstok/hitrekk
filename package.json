@@ -1,0 +1,15 @@
+{
+  "name": "hitrekk",
+  "version": "1.0.0",
+  "description": "3D Hiking Explorer — visualise GPX tracks on a live topographic map",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "npx serve . --listen 3000 --no-clipboard",
+    "start": "npx serve .",
+    "test": "node --test 'tests/*.test.mjs'"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

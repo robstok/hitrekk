@@ -1,0 +1,75 @@
+/* ═══════════════════════════════════════════════════════════════
+   Horizon — CSS Custom Properties & Global Reset
+   ═══════════════════════════════════════════════════════════════ */
+
+:root {
+  /* Layout */
+  --sidebar-w: 300px;
+  --elev-h: 200px;
+
+  /* Backgrounds */
+  --bg: #0d1117;
+  --bg-panel: rgba(13, 17, 23, 0.96);
+  --bg-card: rgba(22, 27, 34, 0.9);
+
+  /* Accent — Horizon Orange */
+  --accent: #FF6B2B;
+  --accent-dim: rgba(255, 107, 43, 0.25);
+  --accent-bg: rgba(255, 107, 43, 0.08);
+
+  /* Semantic colours */
+  --green: #22C55E;
+  --red: #EF4444;
+  --teal: #4ECDC4;
+
+  /* Typography */
+  --text-1: #F0F6FC;
+  --text-2: #8B949E;
+
+  /* Borders & decoration */
+  --border: rgba(255, 255, 255, 0.08);
+  --radius: 10px;
+  --shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+/* ── Global Reset ─────────────────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto,
+    Oxygen, Ubuntu, Cantarell, 'Helvetica Neue', sans-serif;
+  background-color: var(--bg);
+  color: var(--text-1);
+  overflow: hidden;
+  height: 100%;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: inherit;
+  cursor: pointer;
+  border: none;
+  background: none;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+img,
+svg {
+  display: block;
+}

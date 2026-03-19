@@ -1,0 +1,509 @@
+/**
+ * UI controller.
+ * Wires together DOM events and module calls.
+ */
+
+import { processGPXFile, removeRoute, toggleRouteVisibility, setActiveRoute, getAllRoutes, getActiveRoute } from './routes.js';
+import { renderElevationChart, syncChartToMapHover, clearHoverState } from './elevation.js';
+import { setHikingLayerVisible, getMap, getHitLayerIds, updateMapHoverPoint } from './map.js';
+
+/** Initialise all UI event bindings. Call once on startup. */
+export function initUI() {
+  setupDropzone();
+  setupFileInput();
+  setupLayerToggle();
+  setupMobileMenu();
+  setupMapHover();
+  setupRouteEvents();
+}
+
+// ── Dropzone ───────────────────────────────────────────────────
+
+function setupDropzone() {
+  const overlay = document.getElementById('drop-overlay');
+
+  // Prevent default for all drag events on window
+  window.addEventListener('dragenter', e => {
+    e.preventDefault();
+    if (overlay) overlay.classList.remove('hidden');
+  });
+
+  window.addEventListener('dragover', e => {
+    e.preventDefault();
+  });
+
+  window.addEventListener('dragleave', e => {
+    // Only hide when leaving the window entirely
+    if (e.relatedTarget === null) {
+      if (overlay) overlay.classList.add('hidden');
+    }
+  });
+
+  window.addEventListener('drop', e => {
+    e.preventDefault();
+    if (overlay) overlay.classList.add('hidden');
+
+    const files = [...(e.dataTransfer?.files ?? [])].filter(f =>
+      f.name.toLowerCase().endsWith('.gpx')
+    );
+
+    if (files.length === 0) {
+      showToast('Please drop a .gpx file', 'error');
+      return;
+    }
+
+    files.forEach(f => handleFile(f));
+  });
+
+  // Dropzone div hover state
+  const dropzone = document.getElementById('dropzone');
+  if (dropzone) {
+    dropzone.addEventListener('dragover', e => {
+      e.preventDefault();
+      dropzone.classList.add('drag-over');
+    });
+    dropzone.addEventListener('dragleave', () => {
+      dropzone.classList.remove('drag-over');
+    });
+    dropzone.addEventListener('drop', e => {
+      e.preventDefault();
+      dropzone.classList.remove('drag-over');
+      const files = [...(e.dataTransfer?.files ?? [])].filter(f =>
+        f.name.toLowerCase().endsWith('.gpx')
+      );
+      files.forEach(f => handleFile(f));
+    });
+  }
+}
+
+// ── File input ─────────────────────────────────────────────────
+
+function setupFileInput() {
+  const input = document.getElementById('file-input');
+  if (!input) return;
+
+  input.addEventListener('change', e => {
+    const files = [...(e.target.files ?? [])].filter(f =>
+      f.name.toLowerCase().endsWith('.gpx')
+    );
+    files.forEach(f => handleFile(f));
+    // Reset so the same file can be loaded again
+    input.value = '';
+  });
+}
+
+// ── Layer toggle ────────────────────────────────────────────────
+
+function setupLayerToggle() {
+  const toggle = document.getElementById('hiking-layer-toggle');
+  if (!toggle) return;
+  toggle.addEventListener('change', e => {
+    setHikingLayerVisible(e.target.checked);
+  });
+}
+
+// ── Mobile menu ─────────────────────────────────────────────────
+
+function setupMobileMenu() {
+  const sidebar = document.getElementById('sidebar');
+  const openBtn = document.getElementById('mob-open');
+  const closeBtn = document.getElementById('mob-close');
+
+  openBtn?.addEventListener('click', () => {
+    sidebar?.classList.add('open');
+  });
+
+  closeBtn?.addEventListener('click', () => {
+    sidebar?.classList.remove('open');
+  });
+
+  // Tap on map area closes sidebar on mobile
+  document.getElementById('map-container')?.addEventListener('click', () => {
+    sidebar?.classList.remove('open');
+  });
+}
+
+// ── Map hover ───────────────────────────────────────────────────
+
+function setupMapHover() {
+  window.addEventListener('map:ready', () => {
+    const map = getMap();
+    if (!map) return;
+
+    map.on('mousemove', e => {
+      const hitIds = getHitLayerIds();
+      if (hitIds.length === 0) return;
+
+      const features = map.queryRenderedFeatures(e.point, { layers: hitIds });
+      if (!features.length) {
+        clearHoverState();
+        updateMapHoverPoint(null);
+        map.getCanvas().style.cursor = '';
+        return;
+      }
+
+      map.getCanvas().style.cursor = 'crosshair';
+
+      const activeRoute = getActiveRoute();
+      if (!activeRoute) return;
+
+      // Find nearest point on active route to mouse position
+      const lngLat = e.lngLat;
+      const nearestIdx = _findNearestPointIndex(activeRoute.coords, lngLat.lng, lngLat.lat);
+
+      updateMapHoverPoint(activeRoute.coords[nearestIdx]);
+
+      if (activeRoute.hasElevation) {
+        syncChartToMapHover(activeRoute, nearestIdx);
+      }
+    });
+
+    map.on('mouseleave', () => {
+      clearHoverState();
+      updateMapHoverPoint(null);
+      map.getCanvas().style.cursor = '';
+    });
+  });
+}
+
+/**
+ * Find the index of the closest point in a coords array to a given lng/lat.
+ *
+ * @param {Array<[number, number]>} coords
+ * @param {number} lng
+ * @param {number} lat
+ * @returns {number}
+ */
+function _findNearestPointIndex(coords, lng, lat) {
+  let nearestIdx = 0;
+  let nearestDist = Infinity;
+  for (let i = 0; i < coords.length; i++) {
+    const dx = coords[i][0] - lng;
+    const dy = coords[i][1] - lat;
+    const dist = dx * dx + dy * dy;
+    if (dist < nearestDist) {
+      nearestDist = dist;
+      nearestIdx = i;
+    }
+  }
+  return nearestIdx;
+}
+
+// ── Route events ────────────────────────────────────────────────
+
+function setupRouteEvents() {
+  window.addEventListener('route:added', e => {
+    const route = e.detail;
+    _addRouteItemToList(route);
+    _updateEmptyState();
+  });
+
+  window.addEventListener('route:removed', e => {
+    const { id } = e.detail;
+    document.getElementById(`ri-${id}`)?.remove();
+    _updateEmptyState();
+  });
+
+  window.addEventListener('route:updated', e => {
+    const route = e.detail;
+    _updateRouteItem(route);
+  });
+
+  window.addEventListener('routes:cleared', () => {
+    document.getElementById('route-list').innerHTML = '';
+    _updateEmptyState();
+    _clearStatsPanel();
+  });
+
+  window.addEventListener('route:activated', e => {
+    const route = e.detail;
+    // Update active highlight in list
+    document.querySelectorAll('.route-item').forEach(el => el.classList.remove('active'));
+    if (route) {
+      document.getElementById(`ri-${route.id}`)?.classList.add('active');
+      renderRouteStats(route);
+      renderElevationChart(route);
+    } else {
+      _clearStatsPanel();
+    }
+  });
+}
+
+// ── Route list rendering ─────────────────────────────────────────
+
+function _addRouteItemToList(route) {
+  const list = document.getElementById('route-list');
+  if (!list) return;
+
+  const item = _buildRouteItem(route);
+  list.appendChild(item);
+}
+
+function _buildRouteItem(route) {
+  const item = document.createElement('div');
+  item.className = 'route-item';
+  item.id = `ri-${route.id}`;
+  if (!route.visible) item.classList.add('hidden-route');
+
+  const distStr = route.totalDist ? route.totalDist.toFixed(1) + ' km' : '';
+  const eleStr = route.elevGain ? '+' + route.elevGain + 'm' : '';
+
+  item.innerHTML = `
+    <div class="route-item-header">
+      <div class="route-dot" style="background: ${route.color}"></div>
+      <span class="route-name" title="${_escHtml(route.name)}">${_escHtml(route.name)}</span>
+      <div class="route-actions">
+        <button class="btn-zoom" title="Zoom to route">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/>
+          </svg>
+        </button>
+        <button class="btn-toggle-vis" title="${route.visible ? 'Hide' : 'Show'} route">
+          ${route.visible ? _eyeIcon() : _eyeOffIcon()}
+        </button>
+        <button class="btn-delete btn-ghost-sm" title="Remove route">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+    ${distStr || eleStr ? `
+    <div class="route-meta">
+      ${distStr ? `<span>${distStr}</span>` : ''}
+      ${eleStr ? `<span>${eleStr}</span>` : ''}
+      ${route.pointCount ? `<span>${route.pointCount} pts</span>` : ''}
+    </div>
+    ` : ''}
+  `;
+
+  // Event bindings
+  item.addEventListener('click', () => {
+    setActiveRoute(route.id);
+  });
+
+  item.querySelector('.btn-zoom')?.addEventListener('click', e => {
+    e.stopPropagation();
+    const r = getAllRoutes().find(r => r.id === route.id);
+    if (r) {
+      import('./map.js').then(({ fitBounds }) => fitBounds(r.bounds));
+    }
+  });
+
+  item.querySelector('.btn-toggle-vis')?.addEventListener('click', e => {
+    e.stopPropagation();
+    toggleRouteVisibility(route.id);
+  });
+
+  item.querySelector('.btn-delete')?.addEventListener('click', e => {
+    e.stopPropagation();
+    removeRoute(route.id);
+  });
+
+  return item;
+}
+
+function _updateRouteItem(route) {
+  const item = document.getElementById(`ri-${route.id}`);
+  if (!item) return;
+
+  if (route.visible) {
+    item.classList.remove('hidden-route');
+  } else {
+    item.classList.add('hidden-route');
+  }
+
+  const visBtn = item.querySelector('.btn-toggle-vis');
+  if (visBtn) {
+    visBtn.innerHTML = route.visible ? _eyeIcon() : _eyeOffIcon();
+    visBtn.title = route.visible ? 'Hide route' : 'Show route';
+  }
+}
+
+function _updateEmptyState() {
+  const list = document.getElementById('route-list');
+  const empty = document.getElementById('route-list-empty');
+  if (!list || !empty) return;
+  empty.style.display = list.children.length === 0 ? '' : 'none';
+}
+
+// ── Route stats panel ────────────────────────────────────────────
+
+/**
+ * Render per-route statistics in the sidebar stats panel.
+ *
+ * @param {Object} route
+ */
+export function renderRouteStats(route) {
+  const panel = document.getElementById('route-stats-panel');
+  if (!panel) return;
+
+  panel.style.display = 'block';
+
+  let speedHtml = '';
+  if (route.speed) {
+    const s = route.speed;
+    const totalSec = s.movTimeSec + s.rstTimeSec;
+    const movPct = totalSec > 0 ? Math.round((s.movTimeSec / totalSec) * 100) : 0;
+    const rstPct = 100 - movPct;
+
+    speedHtml = `
+      <div class="stats-section-label" style="margin-top: 4px">Speed & Time</div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-val">${fmtDur(s.movTimeSec)}</div>
+          <div class="stat-lbl">Moving Time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${fmtDur(s.rstTimeSec)}</div>
+          <div class="stat-lbl">Rest Time</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${s.avgMovingSpeed.toFixed(1)}<span class="stat-unit">km/h</span></div>
+          <div class="stat-lbl">Avg Speed</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${s.maxSpeed.toFixed(1)}<span class="stat-unit">km/h</span></div>
+          <div class="stat-lbl">Max Speed</div>
+        </div>
+      </div>
+      <div class="time-bar">
+        <div class="time-bar-mv" style="width: ${movPct}%"></div>
+        <div class="time-bar-rs" style="width: ${rstPct}%"></div>
+      </div>
+      <div class="time-legend">
+        <span><span class="ldot" style="background: var(--green)"></span>Moving ${movPct}%</span>
+        <span>Rest ${rstPct}%<span class="ldot" style="background: #F59E0B; margin-left: 4px; margin-right: 0"></span></span>
+      </div>
+    `;
+  }
+
+  panel.innerHTML = `
+    <div class="section-title">
+      <span style="color: ${route.color}">${_escHtml(route.name)}</span>
+    </div>
+    <div class="route-stats">
+      <div class="stats-grid">
+        <div class="stat-card accent">
+          <div class="stat-val">${route.totalDist.toFixed(1)}<span class="stat-unit">km</span></div>
+          <div class="stat-lbl">Distance</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${route.pointCount}</div>
+          <div class="stat-lbl">Track Points</div>
+        </div>
+        ${route.hasElevation ? `
+        <div class="stat-card">
+          <div class="stat-val">+${route.elevGain}<span class="stat-unit">m</span></div>
+          <div class="stat-lbl">Elevation Gain</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">-${route.elevLoss}<span class="stat-unit">m</span></div>
+          <div class="stat-lbl">Elevation Loss</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${route.maxEle}<span class="stat-unit">m</span></div>
+          <div class="stat-lbl">Max Elevation</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-val">${route.minEle}<span class="stat-unit">m</span></div>
+          <div class="stat-lbl">Min Elevation</div>
+        </div>
+        ` : ''}
+      </div>
+      ${speedHtml}
+    </div>
+  `;
+}
+
+function _clearStatsPanel() {
+  const panel = document.getElementById('route-stats-panel');
+  if (panel) {
+    panel.style.display = 'none';
+    panel.innerHTML = '';
+  }
+}
+
+// ── Toast notifications ─────────────────────────────────────────
+
+/**
+ * Display a toast notification.
+ *
+ * @param {string} message
+ * @param {'info'|'success'|'error'} type
+ */
+export function showToast(message, type = 'info') {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  if (type === 'error') toast.classList.add('toast-error');
+  if (type === 'success') toast.classList.add('toast-success');
+  toast.textContent = message;
+
+  container.appendChild(toast);
+
+  // Trigger animation
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => toast.classList.add('show'));
+  });
+
+  // Auto-remove
+  setTimeout(() => {
+    toast.classList.remove('show');
+    setTimeout(() => toast.remove(), 300);
+  }, 4000);
+}
+
+// ── File handler ────────────────────────────────────────────────
+
+/**
+ * Process a single GPX file.
+ *
+ * @param {File} file
+ */
+export async function handleFile(file) {
+  try {
+    const route = await processGPXFile(file);
+    showToast(`Loaded: ${route.name}`, 'success');
+  } catch (err) {
+    console.error('GPX load error:', err);
+    showToast(err.message || `Failed to load ${file.name}`, 'error');
+  }
+}
+
+// ── Duration formatting (also used in stats panel) ──────────────
+
+function fmtDur(sec) {
+  if (!sec || sec <= 0) return '0m';
+  const h = Math.floor(sec / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
+// ── SVG helpers ─────────────────────────────────────────────────
+
+function _eyeIcon() {
+  return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+    <circle cx="12" cy="12" r="3"/>
+  </svg>`;
+}
+
+function _eyeOffIcon() {
+  return `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+    <path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94"/>
+    <path d="M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/>
+    <line x1="1" y1="1" x2="23" y2="23"/>
+  </svg>`;
+}
+
+function _escHtml(str) {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}

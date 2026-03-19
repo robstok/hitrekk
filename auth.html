@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hitrekk — Sign In</title>
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/auth.css">
+
+  <!-- Supabase UMD (must load before ES modules) -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+</head>
+<body class="auth-body">
+
+<div class="auth-card">
+
+  <!-- Logo -->
+  <div class="auth-logo">
+    <svg class="auth-logo-icon" width="40" height="40" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <path d="M2 22L10 8L16 16L20 11L26 22H2Z" fill="currentColor" opacity=".2"/>
+      <path d="M2 22L10 8L16 16L20 11L26 22" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+      <circle cx="23" cy="6" r="2.5" fill="currentColor" opacity=".6"/>
+    </svg>
+    <h1>Hitrekk</h1>
+    <p>3D Hiking Explorer</p>
+  </div>
+
+  <!-- Login / Register tabs -->
+  <div id="auth-tabs" class="auth-tabs">
+    <button id="tab-login" class="auth-tab active">Sign In</button>
+    <button id="tab-register" class="auth-tab">Create Account</button>
+  </div>
+
+  <!-- ── Login panel ──────────────────────────────────────────── -->
+  <div id="panel-login" class="auth-panel active">
+    <form id="form-login" novalidate>
+      <div class="field">
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" name="email" placeholder="you@example.com" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" name="password" placeholder="&bull;&bull;&bull;&bull;&bull;&bull;&bull;&bull;" autocomplete="current-password" required>
+      </div>
+      <a href="#" id="link-forgot" class="forgot-link">Forgot password?</a>
+      <div class="form-msg" role="alert" aria-live="polite"></div>
+      <button type="submit" id="btn-login" class="btn-primary w-full">Sign In</button>
+    </form>
+  </div>
+
+  <!-- ── Register panel ───────────────────────────────────────── -->
+  <div id="panel-register" class="auth-panel">
+    <form id="form-register" novalidate>
+      <div class="field">
+        <label for="register-name">Full Name</label>
+        <input type="text" id="register-name" name="name" placeholder="Alex Wanderer" autocomplete="name" required>
+      </div>
+      <div class="field">
+        <label for="register-email">Email</label>
+        <input type="email" id="register-email" name="email" placeholder="you@example.com" autocomplete="email" required>
+      </div>
+      <div class="field">
+        <label for="register-password">Password <span style="font-weight:400;opacity:.6">(min 8 chars)</span></label>
+        <input type="password" id="register-password" name="password" placeholder="Create a strong password" autocomplete="new-password" minlength="8" required>
+      </div>
+      <div class="field">
+        <label for="register-confirm">Confirm Password</label>
+        <input type="password" id="register-confirm" name="confirm" placeholder="Repeat your password" autocomplete="new-password" required>
+      </div>
+      <div class="form-msg" role="alert" aria-live="polite"></div>
+      <button type="submit" id="btn-register" class="btn-primary w-full">Create Account</button>
+    </form>
+  </div>
+
+  <!-- ── Forgot password panel ────────────────────────────────── -->
+  <div id="panel-forgot" class="auth-panel">
+    <div class="panel-back">
+      <a href="#" class="link-back-login">&#8592; Back to sign in</a>
+    </div>
+    <h3>Reset Password</h3>
+    <p class="auth-help">Enter your email address and we'll send you a link to reset your password.</p>
+    <form id="form-forgot" novalidate>
+      <div class="field">
+        <label for="forgot-email">Email</label>
+        <input type="email" id="forgot-email" name="email" placeholder="you@example.com" autocomplete="email" required>
+      </div>
+      <div class="form-msg" role="alert" aria-live="polite"></div>
+      <button type="submit" id="btn-forgot" class="btn-primary w-full">Send Reset Link</button>
+    </form>
+  </div>
+
+  <!-- ── Reset password panel ─────────────────────────────────── -->
+  <div id="panel-reset" class="auth-panel">
+    <h3>Set New Password</h3>
+    <p class="auth-help" style="margin-bottom: 16px;">Choose a strong password for your Horizon account.</p>
+    <form id="form-reset" novalidate>
+      <div class="field">
+        <label for="reset-password">New Password <span style="font-weight:400;opacity:.6">(min 8 chars)</span></label>
+        <input type="password" id="reset-password" name="password" placeholder="Create a strong password" autocomplete="new-password" minlength="8" required>
+      </div>
+      <div class="field">
+        <label for="reset-confirm">Confirm New Password</label>
+        <input type="password" id="reset-confirm" name="confirm" placeholder="Repeat your new password" autocomplete="new-password" required>
+      </div>
+      <div class="form-msg" role="alert" aria-live="polite"></div>
+      <button type="submit" id="btn-reset" class="btn-primary w-full">Update Password</button>
+    </form>
+  </div>
+
+</div>
+
+<!-- Auth page ES module -->
+<script type="module" src="js/auth-page.js"></script>
+
+</body>
+</html>
