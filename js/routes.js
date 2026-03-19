@@ -7,7 +7,7 @@ import { CONFIG } from './config.js';
 import { parseGPX, buildRouteData } from './gpx.js';
 import { calculateSpeedAnalytics } from './analytics.js';
 import { addRouteLayer, removeRouteLayer, setRouteVisibility, fitBounds, onMapReady } from './map.js';
-import { saveRoute, deleteRoute, deleteAllUserRoutes, fetchUserRoutes } from './db.js';
+import { saveRoute, deleteRoute, deleteAllUserRoutes, fetchUserRoutes, updateRouteName, updateRouteStats } from './db.js';
 import { getUser } from './auth.js';
 
 // In-memory store: routeId → route object
@@ -134,6 +134,37 @@ export async function loadSavedRoutes() {
       }
     }
   }
+}
+
+/** Rename a route in memory and persist to Supabase. */
+export function renameRoute(id, newName) {
+  const route = _routes.get(id);
+  if (!route || !newName.trim()) return;
+  route.name = newName.trim();
+  window.dispatchEvent(new CustomEvent('route:updated', { detail: route }));
+  updateRouteName(id, route.name).catch(err => {
+    console.error('Failed to rename route:', err);
+    window.dispatchEvent(new CustomEvent('app:error', { detail: 'Could not rename route: ' + err.message }));
+  });
+}
+
+/** Override the max speed for a route and persist to Supabase. */
+export function setRouteMaxSpeed(id, speedKmh) {
+  const route = _routes.get(id);
+  if (!route || !route.speed) return;
+  route.speed.maxSpeed = speedKmh;
+  window.dispatchEvent(new CustomEvent('route:updated', { detail: route }));
+  const stats = {
+    totalDist:   route.totalDist       ?? 0,
+    elevGain:    route.elevGain        ?? 0,
+    movTimeSec:  route.speed.movTimeSec ?? 0,
+    rstTimeSec:  route.speed.rstTimeSec ?? 0,
+    maxSpeedKmh: speedKmh,
+  };
+  updateRouteStats(id, stats).catch(err => {
+    console.error('Failed to update max speed:', err);
+    window.dispatchEvent(new CustomEvent('app:error', { detail: 'Could not save max speed: ' + err.message }));
+  });
 }
 
 /**

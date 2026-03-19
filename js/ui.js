@@ -3,7 +3,7 @@
  * Wires together DOM events and module calls.
  */
 
-import { processGPXFile, removeRoute, toggleRouteVisibility, setActiveRoute, getAllRoutes, getActiveRoute } from './routes.js';
+import { processGPXFile, removeRoute, toggleRouteVisibility, setActiveRoute, getAllRoutes, getActiveRoute, renameRoute, setRouteMaxSpeed } from './routes.js';
 import { renderElevationChart, syncChartToMapHover, clearHoverState } from './elevation.js';
 import { setHikingLayerVisible, setSatelliteVisible, set3DMode, getMap, getHitLayerIds, updateMapHoverPoint } from './map.js';
 import { loadPhotos, getPhotosForRoute, showLightbox } from './photos.js';
@@ -479,9 +479,9 @@ export function renderRouteStats(route) {
           <div class="stat-val">${s.avgMovingSpeed.toFixed(1)}<span class="stat-unit">km/h</span></div>
           <div class="stat-lbl">Avg Speed</div>
         </div>
-        <div class="stat-card">
+        <div class="stat-card" id="max-speed-card-${route.id}">
           <div class="stat-val">${s.maxSpeed.toFixed(1)}<span class="stat-unit">km/h</span></div>
-          <div class="stat-lbl">Max Speed</div>
+          <div class="stat-lbl">Max Speed <button class="btn-edit-inline" title="Edit max speed">&#9998;</button></div>
         </div>
       </div>
       <div class="time-bar">
@@ -509,7 +509,8 @@ export function renderRouteStats(route) {
 
   panel.innerHTML = `
     <div class="section-title">
-      <span style="color: ${route.color}">${_escHtml(route.name)}</span>
+      <span class="route-name-display" style="color: ${route.color}">${_escHtml(route.name)}</span>
+      <button class="btn-edit-inline btn-rename" title="Rename route">&#9998;</button>
     </div>
     <div class="route-stats">
       <div class="stats-grid">
@@ -547,6 +548,69 @@ export function renderRouteStats(route) {
 
   panel.querySelectorAll('.photo-thumb').forEach(btn => {
     btn.addEventListener('click', () => showLightbox(btn.dataset.url, btn.dataset.name));
+  });
+
+  // Inline rename
+  panel.querySelector('.btn-rename')?.addEventListener('click', () => {
+    const nameSpan = panel.querySelector('.route-name-display');
+    const renameBtn = panel.querySelector('.btn-rename');
+    if (!nameSpan) return;
+
+    const current = route.name;
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.value = current;
+    input.className = 'inline-edit-input';
+    input.style.color = route.color;
+
+    nameSpan.replaceWith(input);
+    renameBtn.style.display = 'none';
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const newName = input.value.trim();
+      if (newName && newName !== current) renameRoute(route.id, newName);
+      renderRouteStats(getActiveRoute() ?? route);
+    };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { renderRouteStats(getActiveRoute() ?? route); }
+    });
+    input.addEventListener('blur', commit);
+  });
+
+  // Inline max speed edit
+  const maxSpeedCard = panel.querySelector(`#max-speed-card-${route.id}`);
+  maxSpeedCard?.querySelector('.btn-edit-inline')?.addEventListener('click', () => {
+    const valDiv = maxSpeedCard.querySelector('.stat-val');
+    const lblDiv = maxSpeedCard.querySelector('.stat-lbl');
+    const current = route.speed?.maxSpeed ?? 0;
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.value = current.toFixed(1);
+    input.min = '0';
+    input.step = '0.1';
+    input.className = 'inline-edit-input';
+    input.style.width = '70px';
+
+    valDiv.innerHTML = '';
+    valDiv.appendChild(input);
+    lblDiv.innerHTML = 'Max Speed <span class="stat-unit">km/h</span>';
+    input.focus();
+    input.select();
+
+    const commit = () => {
+      const val = parseFloat(input.value);
+      if (!isNaN(val) && val >= 0 && val !== current) setRouteMaxSpeed(route.id, val);
+      renderRouteStats(getActiveRoute() ?? route);
+    };
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); commit(); }
+      if (e.key === 'Escape') { renderRouteStats(getActiveRoute() ?? route); }
+    });
+    input.addEventListener('blur', commit);
   });
 }
 

@@ -23,6 +23,16 @@ export async function saveRoute(id, userId, name, color, gpxContent, stats = nul
   }
 }
 
+export async function updateRouteName(id, name) {
+  const { error } = await sb.from('routes').update({ name }).eq('id', id);
+  if (error) throw error;
+}
+
+export async function updateRouteStats(id, stats) {
+  const { error } = await sb.from('routes').update({ stats }).eq('id', id);
+  if (error) throw error;
+}
+
 export async function deleteRoute(id) {
   const { error } = await sb.from('routes').delete().eq('id', id);
   if (error) throw error;
