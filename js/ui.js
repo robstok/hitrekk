@@ -5,7 +5,7 @@
 
 import { processGPXFile, removeRoute, toggleRouteVisibility, setActiveRoute, getAllRoutes, getActiveRoute } from './routes.js';
 import { renderElevationChart, syncChartToMapHover, clearHoverState } from './elevation.js';
-import { setHikingLayerVisible, getMap, getHitLayerIds, updateMapHoverPoint } from './map.js';
+import { setHikingLayerVisible, set3DMode, getMap, getHitLayerIds, updateMapHoverPoint } from './map.js';
 
 /** Initialise all UI event bindings. Call once on startup. */
 export function initUI() {
@@ -95,11 +95,19 @@ function setupFileInput() {
 // ── Layer toggle ────────────────────────────────────────────────
 
 function setupLayerToggle() {
-  const toggle = document.getElementById('hiking-layer-toggle');
-  if (!toggle) return;
-  toggle.addEventListener('change', e => {
-    setHikingLayerVisible(e.target.checked);
-  });
+  const hikingToggle = document.getElementById('hiking-layer-toggle');
+  if (hikingToggle) {
+    hikingToggle.addEventListener('change', e => {
+      setHikingLayerVisible(e.target.checked);
+    });
+  }
+
+  const terrainToggle = document.getElementById('terrain-3d-toggle');
+  if (terrainToggle) {
+    terrainToggle.addEventListener('change', e => {
+      set3DMode(e.target.checked);
+    });
+  }
 }
 
 // ── Mobile menu ─────────────────────────────────────────────────

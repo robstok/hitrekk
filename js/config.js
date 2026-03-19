@@ -23,7 +23,7 @@ export const CONFIG = {
   // ── Initial view (European Alps) ─────────────────────────
   INITIAL_CENTER: [10.0, 47.0],
   INITIAL_ZOOM:   6,
-  INITIAL_PITCH:  45,
+  INITIAL_PITCH:  0,
 
   // ── Trail colours (cycled for multiple routes) ────────────
   TRAIL_COLORS: ['#FF6B2B', '#4ECDC4', '#45B7D1', '#96CEB4', '#F7DC6F', '#BB8FCE', '#52BE80'],
