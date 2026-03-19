@@ -71,7 +71,7 @@ export async function fetchUserRoutes() {
 
 export async function uploadPhotoFile(storagePath, file) {
   const { error } = await sb.storage.from('photos').upload(storagePath, file, { upsert: true });
-  if (error) throw error;
+  if (error) throw new Error(`Storage: ${error.message}`);
 }
 
 export function getPhotoPublicUrl(storagePath) {
@@ -82,8 +82,8 @@ export function getPhotoPublicUrl(storagePath) {
 export async function savePhotoRecord(id, userId, routeId, name, lat, lon, photoTime, storagePath) {
   const row = { id, user_id: userId, route_id: routeId, name, lat, lon, storage_path: storagePath };
   if (photoTime) row.photo_time = photoTime.toISOString();
-  const { error } = await sb.from('photos').upsert(row);
-  if (error) throw error;
+  const { error } = await sb.from('photos').insert(row);
+  if (error) throw new Error(`DB: ${error.message}`);
 }
 
 export async function fetchUserPhotos() {
