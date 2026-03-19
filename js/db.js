@@ -3,7 +3,6 @@
  */
 
 import { supabaseClient as sb } from './supabase.js';
-import { CONFIG } from './config.js';
 
 export async function saveRoute(id, userId, name, color, gpxContent, stats = null, hikeDate = null) {
   const row = { id, user_id: userId, name, color, gpx_content: gpxContent };
@@ -68,39 +67,10 @@ export async function fetchUserRoutes() {
   return data ?? [];
 }
 
-// ── Photo storage ─────────────────────────────────────────────────
+// ── Photo persistence (base64 in DB, no storage bucket needed) ────
 
-export async function uploadPhotoFile(storagePath, file) {
-  const { data: { session } } = await sb.auth.getSession();
-  if (!session) throw new Error('Storage: not authenticated');
-
-  const res = await fetch(
-    `${CONFIG.SUPABASE_URL}/storage/v1/object/photos/${storagePath}`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${session.access_token}`,
-        'apikey': CONFIG.SUPABASE_ANON_KEY,
-        'x-upsert': 'true',
-        'Content-Type': file.type || 'application/octet-stream',
-      },
-      body: file,
-    }
-  );
-
-  if (!res.ok) {
-    const body = await res.json().catch(() => ({ message: res.statusText }));
-    throw new Error(`Storage: ${body.message ?? res.statusText}`);
-  }
-}
-
-export function getPhotoPublicUrl(storagePath) {
-  const { data } = sb.storage.from('photos').getPublicUrl(storagePath);
-  return data.publicUrl;
-}
-
-export async function savePhotoRecord(id, userId, routeId, name, lat, lon, photoTime, storagePath) {
-  const row = { id, user_id: userId, route_id: routeId, name, lat, lon, storage_path: storagePath };
+export async function savePhotoRecord(id, userId, routeId, name, lat, lon, photoTime, photoData) {
+  const row = { id, user_id: userId, route_id: routeId, name, lat, lon, photo_data: photoData };
   if (photoTime) row.photo_time = photoTime.toISOString();
   const { error } = await sb.from('photos').insert(row);
   if (error) throw new Error(`DB: ${error.message}`);
@@ -109,23 +79,17 @@ export async function savePhotoRecord(id, userId, routeId, name, lat, lon, photo
 export async function fetchUserPhotos() {
   const { data, error } = await sb
     .from('photos')
-    .select('id, route_id, name, lat, lon, photo_time, storage_path')
+    .select('id, route_id, name, lat, lon, photo_time, photo_data')
     .order('created_at', { ascending: true });
   if (error) throw error;
   return data ?? [];
 }
 
 export async function deletePhotosForRoute(routeId) {
-  const { data } = await sb.from('photos').select('storage_path').eq('route_id', routeId);
-  const paths = (data ?? []).map(r => r.storage_path).filter(Boolean);
-  if (paths.length) await sb.storage.from('photos').remove(paths);
   await sb.from('photos').delete().eq('route_id', routeId);
 }
 
 export async function deleteAllUserPhotos(userId) {
-  const { data } = await sb.from('photos').select('storage_path').eq('user_id', userId);
-  const paths = (data ?? []).map(r => r.storage_path).filter(Boolean);
-  if (paths.length) await sb.storage.from('photos').remove(paths);
   await sb.from('photos').delete().eq('user_id', userId);
 }
 

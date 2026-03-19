@@ -10,8 +10,6 @@ import { getAllRoutes } from './routes.js';
 import { getMap, onMapReady } from './map.js';
 import { getUser } from './auth.js';
 import {
-  uploadPhotoFile,
-  getPhotoPublicUrl,
   savePhotoRecord,
   fetchUserPhotos,
   deletePhotosForRoute as dbDeletePhotosForRoute,
@@ -78,12 +76,10 @@ export async function loadPhotos(files) {
       added++;
       window.dispatchEvent(new CustomEvent('photos:updated', { detail: { routeId } }));
 
-      // Persist to Supabase in the background
+      // Persist to Supabase in the background (compressed base64 in DB)
       if (user) {
-        const storagePath = `${user.id}/${id}`;
-        uploadPhotoFile(storagePath, file)
-          .then(() => savePhotoRecord(id, user.id, routeId, file.name, lat, lon, time, storagePath))
-          .then(() => { photo.storagePath = storagePath; })
+        _compressImage(file)
+          .then(photoData => savePhotoRecord(id, user.id, routeId, file.name, lat, lon, time, photoData))
           .catch(err => {
             console.warn('Failed to persist photo:', file.name, err);
             window.dispatchEvent(new CustomEvent('app:error', { detail: `Photo not saved: ${err.message}` }));
@@ -120,18 +116,17 @@ export async function loadSavedPhotos() {
   for (const row of records) {
     // Skip if already in memory (e.g. just uploaded this session)
     if (_photos.find(p => p.id === row.id)) continue;
+    if (!row.photo_data) continue;
 
-    const url  = getPhotoPublicUrl(row.storage_path);
     const time = row.photo_time ? new Date(row.photo_time) : null;
     const photo = {
       id: row.id,
-      url,
+      url: row.photo_data,
       lat: row.lat,
       lon: row.lon,
       time,
       routeId: row.route_id,
       name: row.name,
-      storagePath: row.storage_path,
     };
     _photos.push(photo);
     _addMapMarker(photo);
@@ -226,6 +221,36 @@ function _matchToRoute(lat, lon, time) {
   }
 
   return null;
+}
+
+/**
+ * Compress an image File to a JPEG data URL using Canvas.
+ * Max 1200px wide, 0.82 quality — keeps thumbnails small (~100–200 KB).
+ */
+function _compressImage(file, maxWidth = 1200, quality = 0.82) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const objUrl = URL.createObjectURL(file);
+    img.onload = () => {
+      try {
+        const scale = Math.min(1, maxWidth / img.naturalWidth);
+        const canvas = document.createElement('canvas');
+        canvas.width  = Math.round(img.naturalWidth  * scale);
+        canvas.height = Math.round(img.naturalHeight * scale);
+        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+        URL.revokeObjectURL(objUrl);
+        resolve(canvas.toDataURL('image/jpeg', quality));
+      } catch (e) {
+        URL.revokeObjectURL(objUrl);
+        reject(e);
+      }
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(objUrl);
+      reject(new Error('Image format not supported for compression'));
+    };
+    img.src = objUrl;
+  });
 }
 
 function _addMapMarker(photo) {
