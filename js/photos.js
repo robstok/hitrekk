@@ -1,14 +1,24 @@
 /**
  * Photo management module.
  * Reads EXIF GPS + timestamp from image files, matches them to routes,
- * pins thumbnails on the map, and exposes data for the stats panel.
+ * pins thumbnails on the map, exposes data for the stats panel,
+ * and persists photos to Supabase Storage + a photos table.
  */
 
 import { haversine } from './gpx.js';
 import { getAllRoutes } from './routes.js';
-import { getMap } from './map.js';
+import { getMap, onMapReady } from './map.js';
+import { getUser } from './auth.js';
+import {
+  uploadPhotoFile,
+  getPhotoPublicUrl,
+  savePhotoRecord,
+  fetchUserPhotos,
+  deletePhotosForRoute as dbDeletePhotosForRoute,
+  deleteAllUserPhotos,
+} from './db.js';
 
-// { id, url, lat, lon, time, routeId, name, marker }
+// { id, url, lat, lon, time, routeId, name, storagePath, marker }
 const _photos = [];
 
 /** Return all photos matched to a given routeId. */
@@ -17,13 +27,24 @@ export function getPhotosForRoute(routeId) {
 }
 
 /**
+ * Set up event listeners so photos are cleared automatically when routes are removed.
+ * Call once at app startup.
+ */
+export function initPhotos() {
+  window.addEventListener('route:removed', e => clearPhotosForRoute(e.detail.id));
+  window.addEventListener('routes:cleared', () => clearAllPhotos());
+}
+
+/**
  * Process an array of image Files: extract EXIF, match to routes,
- * add map markers. Returns the number successfully added.
+ * add map markers, upload to Supabase Storage.
+ * Returns { added, noGps, unmatched }.
  */
 export async function loadPhotos(files) {
-  let added = 0, noGps = 0;
+  let added = 0, noGps = 0, unmatched = 0;
 
   const imageExts = /\.(jpe?g|png|gif|webp|heic|heif|tiff?|avif)$/i;
+  const user = await getUser();
 
   for (const file of files) {
     const isImage = file.type.startsWith('image/') || imageExts.test(file.name);
@@ -46,25 +67,75 @@ export async function loadPhotos(files) {
         continue;
       }
 
+      const id      = crypto.randomUUID();
       const url     = URL.createObjectURL(file);
       const routeId = _matchToRoute(lat, lon, time);
-      const photo   = { id: crypto.randomUUID(), url, lat, lon, time, routeId, name: file.name };
+      if (routeId === null) unmatched++;
 
+      const photo = { id, url, lat, lon, time, routeId, name: file.name, storagePath: null };
       _photos.push(photo);
       _addMapMarker(photo);
-
       added++;
       window.dispatchEvent(new CustomEvent('photos:updated', { detail: { routeId } }));
+
+      // Persist to Supabase in the background
+      if (user) {
+        const storagePath = `${user.id}/${id}`;
+        uploadPhotoFile(storagePath, file)
+          .then(() => savePhotoRecord(id, user.id, routeId, file.name, lat, lon, time, storagePath))
+          .then(() => { photo.storagePath = storagePath; })
+          .catch(err => console.warn('Failed to persist photo:', file.name, err));
+      }
     } catch (err) {
       console.warn('Failed to process photo:', file.name, err);
       window.dispatchEvent(new CustomEvent('app:error', { detail: err.message }));
     }
   }
 
-  return { added, noGps };
+  return { added, noGps, unmatched };
 }
 
-/** Remove all photos for a route and clean up markers + object URLs. */
+/**
+ * Load photos saved from previous sessions.
+ * Fetches metadata from Supabase, rebuilds public URLs, adds map markers.
+ */
+export async function loadSavedPhotos() {
+  let records;
+  try {
+    records = await fetchUserPhotos();
+  } catch (err) {
+    // photos table may not exist yet
+    console.warn('Failed to load saved photos:', err.message);
+    return;
+  }
+
+  if (!records.length) return;
+
+  await new Promise(resolve => onMapReady(resolve));
+
+  for (const row of records) {
+    // Skip if already in memory (e.g. just uploaded this session)
+    if (_photos.find(p => p.id === row.id)) continue;
+
+    const url  = getPhotoPublicUrl(row.storage_path);
+    const time = row.photo_time ? new Date(row.photo_time) : null;
+    const photo = {
+      id: row.id,
+      url,
+      lat: row.lat,
+      lon: row.lon,
+      time,
+      routeId: row.route_id,
+      name: row.name,
+      storagePath: row.storage_path,
+    };
+    _photos.push(photo);
+    _addMapMarker(photo);
+    window.dispatchEvent(new CustomEvent('photos:updated', { detail: { routeId: row.route_id } }));
+  }
+}
+
+/** Remove all photos for a route: clean up markers, URLs, and Supabase records. */
 export function clearPhotosForRoute(routeId) {
   const indices = [];
   _photos.forEach((p, i) => {
@@ -75,6 +146,19 @@ export function clearPhotosForRoute(routeId) {
     }
   });
   for (let i = indices.length - 1; i >= 0; i--) _photos.splice(indices[i], 1);
+  dbDeletePhotosForRoute(routeId).catch(err => console.warn('Failed to delete photos from DB:', err));
+}
+
+/** Remove ALL photos: called when routes:cleared fires. */
+export function clearAllPhotos() {
+  _photos.forEach(p => {
+    p.marker?.remove();
+    URL.revokeObjectURL(p.url);
+  });
+  _photos.length = 0;
+  getUser().then(user => {
+    if (user) deleteAllUserPhotos(user.id).catch(err => console.warn('Failed to delete photos:', err));
+  });
 }
 
 /** Show a photo in a full-screen lightbox. */

@@ -9,6 +9,7 @@ import { initUI, showToast } from './ui.js';
 import * as dashboard from './dashboard.js';
 import { clearAllRoutes, loadSavedRoutes } from './routes.js';
 import { destroyChart } from './elevation.js';
+import { initPhotos, loadSavedPhotos } from './photos.js';
 
 async function main() {
   // Auth guard — redirects to /auth.html if not signed in
@@ -22,10 +23,12 @@ async function main() {
   // Boot map and UI
   initMap('map');
   initUI();
+  initPhotos();
   dashboard.init();
 
-  // Load routes saved from previous sessions
+  // Load routes and photos saved from previous sessions
   loadSavedRoutes().catch(err => console.warn('Failed to load saved routes:', err));
+  loadSavedPhotos().catch(err => console.warn('Failed to load saved photos:', err));
 
   // Commit each new route to the persistent dashboard
   window.addEventListener('route:added', e => {

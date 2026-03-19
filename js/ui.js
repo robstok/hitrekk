@@ -58,8 +58,15 @@ function setupDropzone() {
     gpxs.forEach(f => handleFile(f));
 
     if (images.length > 0) {
-      const { added } = await loadPhotos(images);
-      if (added > 0) showToast(`${added} photo${added === 1 ? '' : 's'} added`, 'success');
+      const { added, noGps, unmatched } = await loadPhotos(images);
+      if (added === 0 && noGps > 0) {
+        showToast(`${noGps} photo${noGps === 1 ? '' : 's'} had no GPS data`, 'error');
+      } else if (added > 0) {
+        const parts = [`${added} photo${added === 1 ? '' : 's'} added`];
+        if (noGps > 0) parts.push(`${noGps} had no GPS`);
+        if (unmatched > 0) parts.push(`${unmatched} didn't match any route`);
+        showToast(parts.join(' · '), unmatched > 0 || noGps > 0 ? 'info' : 'success');
+      }
     }
   });
 
@@ -113,15 +120,16 @@ function setupPhotoInput() {
     const files = [...(e.target.files ?? [])];
     if (!files.length) return;
     input.value = '';
-    const { added, noGps } = await loadPhotos(files);
+    const { added, noGps, unmatched } = await loadPhotos(files);
     if (added === 0 && noGps > 0) {
       showToast(`${noGps} photo${noGps === 1 ? '' : 's'} had no GPS data — cannot place on map`, 'error');
     } else if (added === 0) {
       showToast('No supported photos found', 'error');
-    } else if (noGps > 0) {
-      showToast(`${added} photo${added === 1 ? '' : 's'} added (${noGps} had no GPS)`, 'info');
     } else {
-      showToast(`${added} photo${added === 1 ? '' : 's'} added`, 'success');
+      const parts = [`${added} photo${added === 1 ? '' : 's'} added`];
+      if (noGps > 0) parts.push(`${noGps} had no GPS`);
+      if (unmatched > 0) parts.push(`${unmatched} didn't match any route`);
+      showToast(parts.join(' · '), unmatched > 0 || noGps > 0 ? 'info' : 'success');
     }
   });
 }

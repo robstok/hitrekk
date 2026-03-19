@@ -67,6 +67,48 @@ export async function fetchUserRoutes() {
   return data ?? [];
 }
 
+// ── Photo storage ─────────────────────────────────────────────────
+
+export async function uploadPhotoFile(storagePath, file) {
+  const { error } = await sb.storage.from('photos').upload(storagePath, file, { upsert: true });
+  if (error) throw error;
+}
+
+export function getPhotoPublicUrl(storagePath) {
+  const { data } = sb.storage.from('photos').getPublicUrl(storagePath);
+  return data.publicUrl;
+}
+
+export async function savePhotoRecord(id, userId, routeId, name, lat, lon, photoTime, storagePath) {
+  const row = { id, user_id: userId, route_id: routeId, name, lat, lon, storage_path: storagePath };
+  if (photoTime) row.photo_time = photoTime.toISOString();
+  const { error } = await sb.from('photos').upsert(row);
+  if (error) throw error;
+}
+
+export async function fetchUserPhotos() {
+  const { data, error } = await sb
+    .from('photos')
+    .select('id, route_id, name, lat, lon, photo_time, storage_path')
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function deletePhotosForRoute(routeId) {
+  const { data } = await sb.from('photos').select('storage_path').eq('route_id', routeId);
+  const paths = (data ?? []).map(r => r.storage_path).filter(Boolean);
+  if (paths.length) await sb.storage.from('photos').remove(paths);
+  await sb.from('photos').delete().eq('route_id', routeId);
+}
+
+export async function deleteAllUserPhotos(userId) {
+  const { data } = await sb.from('photos').select('storage_path').eq('user_id', userId);
+  const paths = (data ?? []).map(r => r.storage_path).filter(Boolean);
+  if (paths.length) await sb.storage.from('photos').remove(paths);
+  await sb.from('photos').delete().eq('user_id', userId);
+}
+
 /** Fetch all routes for the dashboard (no gpx_content, just stats). */
 export async function fetchAllRouteStats() {
   // Try with stats/hike_date columns first; fall back if they don't exist yet.
