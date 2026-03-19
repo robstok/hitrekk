@@ -200,15 +200,13 @@ function _findNearestPointIndex(coords, lng, lat) {
 // ── Route events ────────────────────────────────────────────────
 
 function setupRouteEvents() {
-  window.addEventListener('route:added', e => {
-    const route = e.detail;
-    _addRouteItemToList(route);
+  window.addEventListener('route:added', () => {
+    _rebuildRouteList();
     _updateEmptyState();
   });
 
-  window.addEventListener('route:removed', e => {
-    const { id } = e.detail;
-    document.getElementById(`ri-${id}`)?.remove();
+  window.addEventListener('route:removed', () => {
+    _rebuildRouteList();
     _updateEmptyState();
   });
 
@@ -218,7 +216,7 @@ function setupRouteEvents() {
   });
 
   window.addEventListener('routes:cleared', () => {
-    document.getElementById('route-list').innerHTML = '';
+    _rebuildRouteList();
     _updateEmptyState();
     _clearStatsPanel();
   });
@@ -239,30 +237,73 @@ function setupRouteEvents() {
 
 // ── Route list rendering ─────────────────────────────────────────
 
-function _addRouteItemToList(route) {
+// Years the user has manually collapsed
+const _collapsedYears = new Set();
+
+function _rebuildRouteList() {
   const list = document.getElementById('route-list');
   if (!list) return;
 
-  const item = _buildRouteItem(route);
-  list.appendChild(item);
-  _sortRouteList();
-}
-
-function _sortRouteList() {
-  const list = document.getElementById('route-list');
-  if (!list) return;
-  const items = [...list.children];
-  items.sort((a, b) => {
-    const routeA = getAllRoutes().find(r => `ri-${r.id}` === a.id);
-    const routeB = getAllRoutes().find(r => `ri-${r.id}` === b.id);
-    const dateA = routeA?.startDate ?? null;
-    const dateB = routeB?.startDate ?? null;
-    if (!dateA && !dateB) return 0;
-    if (!dateA) return 1;
-    if (!dateB) return -1;
-    return dateB - dateA; // newest first
+  const routes = [...getAllRoutes()].sort((a, b) => {
+    if (!a.startDate && !b.startDate) return 0;
+    if (!a.startDate) return 1;
+    if (!b.startDate) return -1;
+    return b.startDate - a.startDate; // newest first
   });
-  items.forEach(item => list.appendChild(item));
+
+  // Group by year
+  const byYear = new Map();
+  for (const route of routes) {
+    const year = route.startDate ? route.startDate.getFullYear() : 'Unknown';
+    if (!byYear.has(year)) byYear.set(year, []);
+    byYear.get(year).push(route);
+  }
+
+  // Preserve active route id
+  const activeId = document.querySelector('.route-item.active')?.id?.replace('ri-', '');
+
+  list.innerHTML = '';
+
+  for (const [year, yearRoutes] of byYear) {
+    const collapsed = _collapsedYears.has(year);
+
+    const group = document.createElement('div');
+    group.className = 'year-group';
+    group.dataset.year = year;
+
+    const header = document.createElement('div');
+    header.className = 'year-header';
+    header.innerHTML = `
+      <span class="year-label">${year}</span>
+      <span class="year-count">${yearRoutes.length} ${yearRoutes.length === 1 ? 'hike' : 'hikes'}</span>
+      <svg class="year-chevron" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+        <path d="M6 9l6 6 6-6"/>
+      </svg>
+    `;
+
+    const content = document.createElement('div');
+    content.className = 'year-routes';
+
+    if (collapsed) {
+      group.classList.add('collapsed');
+    }
+
+    header.addEventListener('click', () => {
+      const isCollapsed = group.classList.toggle('collapsed');
+      if (isCollapsed) _collapsedYears.add(year);
+      else _collapsedYears.delete(year);
+    });
+
+    for (const route of yearRoutes) {
+      const item = _buildRouteItem(route);
+      if (route.id === activeId) item.classList.add('active');
+      content.appendChild(item);
+    }
+
+    group.appendChild(header);
+    group.appendChild(content);
+    list.appendChild(group);
+  }
 }
 
 function _buildRouteItem(route) {
@@ -272,7 +313,10 @@ function _buildRouteItem(route) {
   if (!route.visible) item.classList.add('hidden-route');
 
   const distStr = route.totalDist ? route.totalDist.toFixed(1) + ' km' : '';
-  const eleStr = route.elevGain ? '+' + route.elevGain + 'm' : '';
+  const eleStr  = route.elevGain  ? '+' + route.elevGain + 'm'         : '';
+  const dateStr = route.startDate
+    ? route.startDate.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+    : '';
 
   item.innerHTML = `
     <div class="route-item-header">
@@ -294,13 +338,11 @@ function _buildRouteItem(route) {
         </button>
       </div>
     </div>
-    ${distStr || eleStr ? `
     <div class="route-meta">
+      ${dateStr ? `<span class="route-date">${dateStr}</span>` : ''}
       ${distStr ? `<span>${distStr}</span>` : ''}
-      ${eleStr ? `<span>${eleStr}</span>` : ''}
-      ${route.pointCount ? `<span>${route.pointCount} pts</span>` : ''}
+      ${eleStr  ? `<span>${eleStr}</span>`  : ''}
     </div>
-    ` : ''}
   `;
 
   // Event bindings
@@ -347,10 +389,9 @@ function _updateRouteItem(route) {
 }
 
 function _updateEmptyState() {
-  const list = document.getElementById('route-list');
   const empty = document.getElementById('route-list-empty');
-  if (!list || !empty) return;
-  empty.style.display = list.children.length === 0 ? '' : 'none';
+  if (!empty) return;
+  empty.style.display = getAllRoutes().length === 0 ? '' : 'none';
 }
 
 // ── Route stats panel ────────────────────────────────────────────
