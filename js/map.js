@@ -85,7 +85,7 @@ function _onStyleLoad() {
     type: 'raster',
     source: 'osm-hiking',
     paint: { 'raster-opacity': 0.65 },
-    layout: { visibility: 'visible' },
+    layout: { visibility: 'none' },
   });
 
   // Shared chart-hover dot (orange) — triggered by chart hover
