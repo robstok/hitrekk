@@ -93,6 +93,26 @@ export async function deleteAllUserPhotos(userId) {
   await sb.from('photos').delete().eq('user_id', userId);
 }
 
+export async function getOrCreateProfile(userId) {
+  const { data } = await sb.from('profiles').select('share_token').eq('user_id', userId).maybeSingle();
+  if (data) return data.share_token;
+  const { data: created, error } = await sb.from('profiles').insert({ user_id: userId }).select('share_token').single();
+  if (error) throw error;
+  return created.share_token;
+}
+
+export async function getRoutesByShareToken(token) {
+  const { data, error } = await sb.rpc('get_routes_by_share_token', { p_token: token });
+  if (error) throw error;
+  return data ?? [];
+}
+
+export async function getPhotosByShareToken(token) {
+  const { data, error } = await sb.rpc('get_photos_by_share_token', { p_token: token });
+  if (error) throw error;
+  return data ?? [];
+}
+
 /** Fetch all routes for the dashboard (no gpx_content, just stats). */
 export async function fetchAllRouteStats() {
   // Try with stats/hike_date columns first; fall back if they don't exist yet.

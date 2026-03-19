@@ -7,7 +7,7 @@ import { CONFIG } from './config.js';
 import { parseGPX, buildRouteData } from './gpx.js';
 import { calculateSpeedAnalytics } from './analytics.js';
 import { addRouteLayer, removeRouteLayer, setRouteVisibility, fitBounds, onMapReady } from './map.js';
-import { saveRoute, deleteRoute, deleteAllUserRoutes, fetchUserRoutes, updateRouteName, updateRouteStats } from './db.js';
+import { saveRoute, deleteRoute, deleteAllUserRoutes, fetchUserRoutes, updateRouteName, updateRouteStats, getRoutesByShareToken } from './db.js';
 import { getUser } from './auth.js';
 
 // In-memory store: routeId → route object
@@ -243,6 +243,18 @@ export function getAllRoutes() {
  */
 export function getActiveRoute() {
   return _activeRouteId ? (_routes.get(_activeRouteId) ?? null) : null;
+}
+
+/**
+ * Load all routes for a public share token (read-only, no persistence).
+ */
+export async function loadSharedRoutes(token) {
+  const saved = await getRoutesByShareToken(token);
+  if (!saved.length) return;
+  await new Promise(resolve => onMapReady(resolve));
+  for (const row of saved) {
+    await _processGPXText(row.gpx_content, row.id, row.color);
+  }
 }
 
 /**

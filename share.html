@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Hitrekk - Shared Map</title>
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+
+  <!-- MapLibre GL CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css">
+
+  <!-- App styles -->
+  <link rel="stylesheet" href="css/variables.css?v=4">
+  <link rel="stylesheet" href="css/app.css?v=4">
+
+  <!-- CDN scripts (UMD globals, loaded before our ES modules) -->
+  <script src="https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/full.umd.js"></script>
+
+  <style>
+    .btn-delete,
+    .btn-rename,
+    .btn-edit-inline {
+      display: none !important;
+    }
+  </style>
+</head>
+<body>
+
+<div id="app">
+  <!-- Sidebar -->
+  <aside id="sidebar">
+
+    <div class="sidebar-header">
+      <div class="logo-row">
+        <button id="mob-close" aria-label="Close menu">&#x2715;</button>
+
+        <svg class="logo-svg" width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+          <path d="M2 22L10 8L16 16L20 11L26 22H2Z" fill="currentColor" opacity=".2"/>
+          <path d="M2 22L10 8L16 16L20 11L26 22" stroke="currentColor" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+          <circle cx="23" cy="6" r="2.5" fill="currentColor" opacity=".6"/>
+        </svg>
+
+        <div>
+          <h1>Hitrekk</h1>
+          <p class="tagline">Shared Map</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Map layers -->
+    <div class="sidebar-section">
+      <div class="section-title">Map Layers</div>
+      <label class="toggle-row">
+        <span>3D Terrain</span>
+        <input type="checkbox" id="terrain-3d-toggle" role="switch" aria-label="Toggle 3D terrain">
+      </label>
+      <label class="toggle-row">
+        <span>Satellite</span>
+        <input type="checkbox" id="satellite-layer-toggle" role="switch" aria-label="Toggle satellite imagery">
+      </label>
+      <label class="toggle-row">
+        <span>OSM Hiking Trails</span>
+        <input type="checkbox" id="hiking-layer-toggle" role="switch" aria-label="Toggle OSM hiking trails overlay">
+      </label>
+    </div>
+
+    <!-- Routes -->
+    <div class="sidebar-section" style="border-bottom: none;">
+      <div class="section-title">Routes</div>
+      <div id="route-list" aria-label="Loaded routes"></div>
+      <div id="route-list-empty" class="list-empty">
+        Loading shared routes&hellip;
+      </div>
+    </div>
+
+    <!-- Active route stats (populated by ui.js) -->
+    <div id="route-stats-panel" class="sidebar-section" style="display: none; border-top: 1px solid var(--border);">
+    </div>
+
+    <!-- CTA -->
+    <div class="sidebar-section" style="border-top: 1px solid var(--border); margin-top: auto;">
+      <a href="/" style="display: block; text-align: center; padding: 0.6rem 0; font-size: 0.85rem; color: var(--accent, #3b82f6); text-decoration: none;">
+        Track your own hikes &rarr;
+      </a>
+    </div>
+
+  </aside>
+
+  <!-- Map -->
+  <main id="map-container">
+    <div id="map" role="application" aria-label="3D hiking map"></div>
+  </main>
+</div>
+
+<!-- Elevation panel (fixed, outside grid) -->
+<div id="elev-panel" class="hidden" aria-label="Elevation profile">
+  <div class="panel-header">
+    <span>Elevation Profile</span>
+    <button id="elev-close" class="btn-ghost-sm" aria-label="Close elevation panel">&#x2715;</button>
+  </div>
+  <div id="elev-chart-container">
+    <canvas id="elev-chart" role="img" aria-label="Elevation profile chart"></canvas>
+  </div>
+</div>
+
+<!-- Mobile FAB -->
+<button id="mob-open" aria-label="Open menu">
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <line x1="3" y1="6" x2="21" y2="6"/>
+    <line x1="3" y1="12" x2="21" y2="12"/>
+    <line x1="3" y1="18" x2="21" y2="18"/>
+  </svg>
+</button>
+
+<!-- Toast notifications -->
+<div id="toast-container" role="status" aria-live="polite" aria-atomic="false"></div>
+
+<!-- Share page ES module entry point -->
+<script type="module" src="js/share.js"></script>
+
+</body>
+</html>

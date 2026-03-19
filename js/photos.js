@@ -14,6 +14,7 @@ import {
   fetchUserPhotos,
   deletePhotosForRoute as dbDeletePhotosForRoute,
   deleteAllUserPhotos,
+  getPhotosByShareToken,
 } from './db.js';
 
 // { id, url, lat, lon, time, routeId, name, storagePath, marker }
@@ -136,6 +137,25 @@ export async function loadSavedPhotos() {
 
   if (loaded > 0) {
     window.dispatchEvent(new CustomEvent('app:info', { detail: `${loaded} photo${loaded === 1 ? '' : 's'} restored` }));
+  }
+}
+
+/**
+ * Load photos for a public share token (read-only, no persistence).
+ */
+export async function loadSharedPhotos(token) {
+  let records;
+  try { records = await getPhotosByShareToken(token); }
+  catch (err) { console.warn('Failed to load shared photos:', err); return; }
+  if (!records.length) return;
+  await new Promise(resolve => onMapReady(resolve));
+  for (const row of records) {
+    if (!row.photo_data || _photos.find(p => p.id === row.id)) continue;
+    const photo = { id: row.id, url: row.photo_data, lat: row.lat, lon: row.lon,
+      time: row.photo_time ? new Date(row.photo_time) : null, routeId: row.route_id, name: row.name };
+    _photos.push(photo);
+    _addMapMarker(photo);
+    window.dispatchEvent(new CustomEvent('photos:updated', { detail: { routeId: row.route_id } }));
   }
 }
 

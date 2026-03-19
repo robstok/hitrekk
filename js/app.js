@@ -4,6 +4,7 @@
  */
 
 import { requireAuth, signOut, onAuthStateChange } from './auth.js';
+import { getOrCreateProfile } from './db.js';
 import { initMap } from './map.js';
 import { initUI, showToast } from './ui.js';
 import * as dashboard from './dashboard.js';
@@ -29,6 +30,13 @@ async function main() {
   // Load routes and photos saved from previous sessions
   loadSavedRoutes().catch(err => console.warn('Failed to load saved routes:', err));
   loadSavedPhotos().catch(err => console.warn('Failed to load saved photos:', err));
+
+  const shareToken = await getOrCreateProfile(user.id).catch(() => null);
+  document.getElementById('share-btn')?.addEventListener('click', () => {
+    if (!shareToken) { showToast('Share link unavailable', 'error'); return; }
+    const url = `${window.location.origin}/share.html?t=${shareToken}`;
+    navigator.clipboard.writeText(url).then(() => showToast('Share link copied!', 'success'));
+  });
 
   // Commit each new route to the persistent dashboard
   window.addEventListener('route:added', e => {
