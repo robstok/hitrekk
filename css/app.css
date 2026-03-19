@@ -387,6 +387,7 @@ input[type="checkbox"][role="switch"]:checked::before {
 #map-container {
   position: relative;
   overflow: hidden;
+  height: 100%;
 }
 
 #map {
@@ -1020,7 +1021,7 @@ input[type="checkbox"][role="switch"]:checked::before {
 }
 
 #mob-close {
-  display: none;
+  display: none; /* shown only in mobile media query */
   width: 28px;
   height: 28px;
   align-items: center;

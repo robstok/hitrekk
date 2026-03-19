@@ -81,9 +81,10 @@ async function _processGPXText(text, id, color, userId = null, persist = false) 
       ? firstTime.toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0];
 
-    saveRoute(id, userId, name, color, text, stats, hikeDate).catch(err =>
-      console.warn('Failed to save route:', err)
-    );
+    saveRoute(id, userId, name, color, text, stats, hikeDate).catch(err => {
+      console.error('Failed to save route:', err);
+      window.dispatchEvent(new CustomEvent('app:error', { detail: 'Route could not be saved: ' + err.message }));
+    });
   }
 
   return route;

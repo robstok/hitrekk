@@ -17,6 +17,7 @@ export function initUI() {
   setupMobileMenu();
   setupMapHover();
   setupRouteEvents();
+  window.addEventListener('app:error', e => showToast(e.detail, 'error'));
 }
 
 // ── Dropzone ───────────────────────────────────────────────────
