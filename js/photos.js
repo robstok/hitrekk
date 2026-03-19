@@ -54,7 +54,7 @@ export async function loadPhotos(files) {
       let lat = null, lon = null, time = null;
 
       if (window.exifr?.parse) {
-        const exif = await window.exifr.parse(file, { gps: true, pick: ['DateTimeOriginal'] });
+        const exif = await window.exifr.parse(file, { gps: true, tiff: true });
         lat  = exif?.latitude  ?? null;
         lon  = exif?.longitude ?? null;
         time = exif?.DateTimeOriginal instanceof Date ? exif.DateTimeOriginal : null;
