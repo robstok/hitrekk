@@ -245,6 +245,24 @@ function _addRouteItemToList(route) {
 
   const item = _buildRouteItem(route);
   list.appendChild(item);
+  _sortRouteList();
+}
+
+function _sortRouteList() {
+  const list = document.getElementById('route-list');
+  if (!list) return;
+  const items = [...list.children];
+  items.sort((a, b) => {
+    const routeA = getAllRoutes().find(r => `ri-${r.id}` === a.id);
+    const routeB = getAllRoutes().find(r => `ri-${r.id}` === b.id);
+    const dateA = routeA?.startDate ?? null;
+    const dateB = routeB?.startDate ?? null;
+    if (!dateA && !dateB) return 0;
+    if (!dateA) return 1;
+    if (!dateB) return -1;
+    return dateB - dateA; // newest first
+  });
+  items.forEach(item => list.appendChild(item));
 }
 
 function _buildRouteItem(route) {

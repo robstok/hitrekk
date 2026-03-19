@@ -41,6 +41,8 @@ async function _processGPXText(text, id, color, userId = null, persist = false) 
   const routeData = buildRouteData(points);
   const speed = calculateSpeedAnalytics(points);
 
+  const firstTime = points.find(p => p.time)?.time ?? null;
+
   const route = {
     id,
     name,
@@ -49,6 +51,7 @@ async function _processGPXText(text, id, color, userId = null, persist = false) 
     points,
     speed,
     gpxText: text,
+    startDate: firstTime,
     ...routeData,
   };
 
@@ -74,7 +77,6 @@ async function _processGPXText(text, id, color, userId = null, persist = false) 
       rstTimeSec: route.speed?.rstTimeSec ?? 0,
       maxSpeedKmh: route.speed?.maxSpeed ?? 0,
     };
-    const firstTime = points.find(p => p.time)?.time;
     const hikeDate = firstTime
       ? firstTime.toISOString().split('T')[0]
       : new Date().toISOString().split('T')[0];
