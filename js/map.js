@@ -31,8 +31,10 @@ export function initMap(containerId) {
   return _map;
 }
 
+let _is3D = false;
+
 function _onStyleLoad() {
-  // 3D terrain DEM
+  // 3D terrain DEM (loaded but not activated by default — starts in 2D mode)
   _map.addSource('terrain-dem', {
     type: 'raster-dem',
     tiles: [CONFIG.TERRAIN_TILES],
@@ -41,18 +43,33 @@ function _onStyleLoad() {
     maxzoom: CONFIG.TERRAIN_MAX_ZOOM,
   });
 
-  _map.setTerrain({ source: 'terrain-dem', exaggeration: CONFIG.TERRAIN_EXAGGERATION });
-
   _map.addLayer({
     id: 'hillshade',
     type: 'hillshade',
     source: 'terrain-dem',
+    layout: { visibility: 'none' },
     paint: {
       'hillshade-exaggeration': 0.4,
       'hillshade-shadow-color': 'rgba(0,0,0,0.5)',
       'hillshade-highlight-color': 'rgba(255,255,255,0.15)',
       'hillshade-illumination-direction': 315,
     },
+  });
+
+  // OSM raster base map — visible in 2D mode, hidden in 3D mode
+  _map.addSource('osm-base', {
+    type: 'raster',
+    tiles: [CONFIG.OSM_TILES],
+    tileSize: 256,
+    attribution: '© OpenStreetMap contributors',
+  });
+
+  _map.addLayer({
+    id: 'osm-base-layer',
+    type: 'raster',
+    source: 'osm-base',
+    paint: { 'raster-opacity': 1 },
+    layout: { visibility: 'visible' },
   });
 
   // OSM Waymarked hiking trails overlay
@@ -68,7 +85,7 @@ function _onStyleLoad() {
     type: 'raster',
     source: 'osm-hiking',
     paint: { 'raster-opacity': 0.65 },
-    layout: { visibility: 'none' },
+    layout: { visibility: 'visible' },
   });
 
   // Shared chart-hover dot (orange) — triggered by chart hover
@@ -205,7 +222,7 @@ export function setHikingLayerVisible(visible) {
 export function fitBounds(bounds, opts = {}) {
   _map.fitBounds(bounds, {
     padding: { top: 60, bottom: 220, left: 40, right: 60 },
-    pitch: 55,
+    pitch: _is3D ? 55 : 0,
     duration: 2000,
     ...opts,
   });
@@ -247,6 +264,27 @@ export function getHitLayerIds() {
   });
   return ids;
 }
+
+/** Switch between 2D (flat OSM) and 3D (terrain) modes. */
+export function set3DMode(enable) {
+  if (!_mapReady) return;
+  _is3D = enable;
+
+  if (enable) {
+    _map.setLayoutProperty('osm-base-layer', 'visibility', 'none');
+    _map.setTerrain({ source: 'terrain-dem', exaggeration: CONFIG.TERRAIN_EXAGGERATION });
+    _map.setLayoutProperty('hillshade', 'visibility', 'visible');
+    _map.easeTo({ pitch: 55, duration: 600 });
+  } else {
+    _map.setTerrain(null);
+    _map.setLayoutProperty('hillshade', 'visibility', 'none');
+    _map.setLayoutProperty('osm-base-layer', 'visibility', 'visible');
+    _map.easeTo({ pitch: 0, duration: 600 });
+  }
+}
+
+/** Return whether the map is currently in 3D mode. */
+export function is3DMode() { return _is3D; }
 
 function _emptyFC() {
   return { type: 'FeatureCollection', features: [] };
