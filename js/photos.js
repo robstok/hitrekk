@@ -84,7 +84,10 @@ export async function loadPhotos(files) {
         uploadPhotoFile(storagePath, file)
           .then(() => savePhotoRecord(id, user.id, routeId, file.name, lat, lon, time, storagePath))
           .then(() => { photo.storagePath = storagePath; })
-          .catch(err => console.warn('Failed to persist photo:', file.name, err));
+          .catch(err => {
+            console.warn('Failed to persist photo:', file.name, err);
+            window.dispatchEvent(new CustomEvent('app:error', { detail: `Photo not saved: ${err.message}` }));
+          });
       }
     } catch (err) {
       console.warn('Failed to process photo:', file.name, err);
@@ -113,6 +116,7 @@ export async function loadSavedPhotos() {
 
   await new Promise(resolve => onMapReady(resolve));
 
+  let loaded = 0;
   for (const row of records) {
     // Skip if already in memory (e.g. just uploaded this session)
     if (_photos.find(p => p.id === row.id)) continue;
@@ -132,6 +136,11 @@ export async function loadSavedPhotos() {
     _photos.push(photo);
     _addMapMarker(photo);
     window.dispatchEvent(new CustomEvent('photos:updated', { detail: { routeId: row.route_id } }));
+    loaded++;
+  }
+
+  if (loaded > 0) {
+    window.dispatchEvent(new CustomEvent('app:info', { detail: `${loaded} photo${loaded === 1 ? '' : 's'} restored` }));
   }
 }
 
