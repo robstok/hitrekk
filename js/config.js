@@ -17,6 +17,9 @@ export const CONFIG = {
   TERRAIN_MAX_ZOOM:   15,
   TERRAIN_EXAGGERATION: 1.5,
 
+  // Standard OSM raster tiles — used as the 2D base map
+  OSM_TILES: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+
   // OSM Waymarked hiking trails overlay (no API key required)
   HIKING_TILES: 'https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png',
 

@@ -56,6 +56,22 @@ function _onStyleLoad() {
     },
   });
 
+  // OSM raster base map — visible in 2D mode, hidden in 3D mode
+  _map.addSource('osm-base', {
+    type: 'raster',
+    tiles: [CONFIG.OSM_TILES],
+    tileSize: 256,
+    attribution: '© OpenStreetMap contributors',
+  });
+
+  _map.addLayer({
+    id: 'osm-base-layer',
+    type: 'raster',
+    source: 'osm-base',
+    paint: { 'raster-opacity': 1 },
+    layout: { visibility: 'visible' },
+  });
+
   // OSM Waymarked hiking trails overlay
   _map.addSource('osm-hiking', {
     type: 'raster',
@@ -249,18 +265,20 @@ export function getHitLayerIds() {
   return ids;
 }
 
-/** Switch between 2D (flat) and 3D (terrain) modes. */
+/** Switch between 2D (flat OSM) and 3D (terrain) modes. */
 export function set3DMode(enable) {
   if (!_mapReady) return;
   _is3D = enable;
 
   if (enable) {
+    _map.setLayoutProperty('osm-base-layer', 'visibility', 'none');
     _map.setTerrain({ source: 'terrain-dem', exaggeration: CONFIG.TERRAIN_EXAGGERATION });
     _map.setLayoutProperty('hillshade', 'visibility', 'visible');
     _map.easeTo({ pitch: 55, duration: 600 });
   } else {
     _map.setTerrain(null);
     _map.setLayoutProperty('hillshade', 'visibility', 'none');
+    _map.setLayoutProperty('osm-base-layer', 'visibility', 'visible');
     _map.easeTo({ pitch: 0, duration: 600 });
   }
 }
