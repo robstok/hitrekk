@@ -22,8 +22,10 @@ export function initMap(containerId) {
     pitch: CONFIG.INITIAL_PITCH,
     antialias: true,
     maxPitch: 85,
+    attributionControl: false,
   });
 
+  _map.addControl(new maplibregl.AttributionControl({ compact: true, customAttribution: '' }), 'bottom-right');
   _map.addControl(new maplibregl.NavigationControl({ visualizePitch: true }), 'bottom-right');
   _map.addControl(new maplibregl.ScaleControl({ unit: 'metric' }), 'bottom-left');
 

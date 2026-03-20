@@ -6,7 +6,7 @@
 import { processGPXFile, removeRoute, toggleRouteVisibility, setActiveRoute, getAllRoutes, getActiveRoute, renameRoute, setRouteMaxSpeed } from './routes.js';
 import { renderElevationChart, syncChartToMapHover, clearHoverState } from './elevation.js';
 import { setHikingLayerVisible, setSatelliteVisible, set3DMode, getMap, getHitLayerIds, updateMapHoverPoint } from './map.js';
-import { loadPhotos, getPhotosForRoute, showLightbox } from './photos.js';
+import { loadPhotos, loadPhotosForRoute, getPhotosForRoute, showLightbox } from './photos.js';
 
 /** Initialise all UI event bindings. Call once on startup. */
 export function initUI() {
@@ -283,7 +283,8 @@ function setupRouteEvents() {
     document.querySelectorAll('.route-item').forEach(el => el.classList.remove('active'));
     if (route) {
       document.getElementById(`ri-${route.id}`)?.classList.add('active');
-      renderRouteStats(route);
+      // Lazily load photos for this route, then refresh stats panel
+      loadPhotosForRoute(route.id).then(() => renderRouteStats(route));
       renderElevationChart(route);
     } else {
       _clearStatsPanel();
@@ -293,8 +294,16 @@ function setupRouteEvents() {
 
 // ── Route list rendering ─────────────────────────────────────────
 
-// Years the user has manually collapsed
-const _collapsedYears = new Set();
+// Explicit user toggles: year -> true (forced open) | false (forced closed)
+const _userToggles = new Map();
+
+function _getMostRecentYear(byYear) {
+  return [...byYear.keys()].reduce((a, b) => {
+    if (a === 'Unknown') return b;
+    if (b === 'Unknown') return a;
+    return b > a ? b : a;
+  });
+}
 
 function _rebuildRouteList() {
   const list = document.getElementById('route-list');
@@ -315,13 +324,17 @@ function _rebuildRouteList() {
     byYear.get(year).push(route);
   }
 
+  const mostRecentYear = byYear.size > 0 ? _getMostRecentYear(byYear) : null;
+
   // Preserve active route id
   const activeId = document.querySelector('.route-item.active')?.id?.replace('ri-', '');
 
   list.innerHTML = '';
 
   for (const [year, yearRoutes] of byYear) {
-    const collapsed = _collapsedYears.has(year);
+    // Default: most recent year open, all others collapsed; user toggles override
+    const defaultCollapsed = year !== mostRecentYear;
+    const collapsed = _userToggles.has(year) ? !_userToggles.get(year) : defaultCollapsed;
 
     const group = document.createElement('div');
     group.className = 'year-group';
@@ -346,8 +359,7 @@ function _rebuildRouteList() {
 
     header.addEventListener('click', () => {
       const isCollapsed = group.classList.toggle('collapsed');
-      if (isCollapsed) _collapsedYears.add(year);
-      else _collapsedYears.delete(year);
+      _userToggles.set(year, !isCollapsed); // true = open, false = collapsed
     });
 
     for (const route of yearRoutes) {

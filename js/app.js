@@ -10,7 +10,7 @@ import { initUI, showToast } from './ui.js';
 import * as dashboard from './dashboard.js';
 import { clearAllRoutes, loadSavedRoutes } from './routes.js';
 import { destroyChart } from './elevation.js';
-import { initPhotos, loadSavedPhotos } from './photos.js';
+import { initPhotos } from './photos.js';
 
 async function main() {
   // Auth guard — redirects to /auth.html if not signed in
@@ -29,7 +29,6 @@ async function main() {
 
   // Load routes and photos saved from previous sessions
   loadSavedRoutes().catch(err => console.warn('Failed to load saved routes:', err));
-  loadSavedPhotos().catch(err => console.warn('Failed to load saved photos:', err));
 
   const shareToken = await getOrCreateProfile(user.id).catch(() => null);
   document.getElementById('share-btn')?.addEventListener('click', () => {

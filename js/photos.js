@@ -12,6 +12,7 @@ import { getUser } from './auth.js';
 import {
   savePhotoRecord,
   fetchUserPhotos,
+  fetchPhotosForRoute,
   deletePhotosForRoute as dbDeletePhotosForRoute,
   deleteAllUserPhotos,
   getPhotosByShareToken,
@@ -19,6 +20,8 @@ import {
 
 // { id, url, lat, lon, time, routeId, name, storagePath, marker }
 const _photos = [];
+// Track which routeIds have had their saved photos fetched from DB
+const _loadedRoutes = new Set();
 
 /** Return all photos matched to a given routeId. */
 export function getPhotosForRoute(routeId) {
@@ -159,6 +162,38 @@ export async function loadSharedPhotos(token) {
   }
 }
 
+/**
+ * Lazily load saved photos for a specific route from Supabase.
+ * No-ops if already loaded for this routeId.
+ */
+export async function loadPhotosForRoute(routeId) {
+  if (_loadedRoutes.has(routeId)) return;
+  _loadedRoutes.add(routeId);
+
+  let records;
+  try {
+    records = await fetchPhotosForRoute(routeId);
+  } catch (err) {
+    console.warn('Failed to load photos for route:', err.message);
+    return;
+  }
+  if (!records.length) return;
+
+  await new Promise(resolve => onMapReady(resolve));
+
+  for (const row of records) {
+    if (!row.photo_data || _photos.find(p => p.id === row.id)) continue;
+    const photo = {
+      id: row.id, url: row.photo_data, lat: row.lat, lon: row.lon,
+      time: row.photo_time ? new Date(row.photo_time) : null,
+      routeId: row.route_id, name: row.name,
+    };
+    _photos.push(photo);
+    _addMapMarker(photo);
+    window.dispatchEvent(new CustomEvent('photos:updated', { detail: { routeId: row.route_id } }));
+  }
+}
+
 /** Remove all photos for a route: clean up markers, URLs, and Supabase records. */
 export function clearPhotosForRoute(routeId) {
   const indices = [];
@@ -170,6 +205,7 @@ export function clearPhotosForRoute(routeId) {
     }
   });
   for (let i = indices.length - 1; i >= 0; i--) _photos.splice(indices[i], 1);
+  _loadedRoutes.delete(routeId);
   dbDeletePhotosForRoute(routeId).catch(err => console.warn('Failed to delete photos from DB:', err));
 }
 
@@ -180,6 +216,7 @@ export function clearAllPhotos() {
     URL.revokeObjectURL(p.url);
   });
   _photos.length = 0;
+  _loadedRoutes.clear();
   getUser().then(user => {
     if (user) deleteAllUserPhotos(user.id).catch(err => console.warn('Failed to delete photos:', err));
   });

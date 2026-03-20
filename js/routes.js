@@ -36,7 +36,7 @@ export async function processGPXFile(file) {
   return _processGPXText(text, crypto.randomUUID(), nextColor(), user?.id ?? null, true);
 }
 
-async function _processGPXText(text, id, color, userId = null, persist = false) {
+async function _processGPXText(text, id, color, userId = null, persist = false, skipFit = false) {
   const { name, points } = parseGPX(text);
   const routeData = buildRouteData(points);
   const speed = calculateSpeedAnalytics(points);
@@ -64,7 +64,7 @@ async function _processGPXText(text, id, color, userId = null, persist = false) 
   };
 
   addRouteLayer(id, color, geojson);
-  fitBounds(route.bounds);
+  if (!skipFit) fitBounds(route.bounds);
   setActiveRoute(id);
 
   window.dispatchEvent(new CustomEvent('route:added', { detail: route }));
@@ -104,7 +104,7 @@ export async function loadSavedRoutes() {
   const user = await getUser();
 
   for (const row of saved) {
-    const route = await _processGPXText(row.gpx_content, row.id, row.color);
+    const route = await _processGPXText(row.gpx_content, row.id, row.color, null, false, true);
 
     // Always recompute and persist stats so stale/missing values are corrected.
     if (user) {
@@ -133,6 +133,22 @@ export async function loadSavedRoutes() {
           .catch(err => console.warn('Failed to update route stats:', err));
       }
     }
+  }
+
+  // Fly to the route with the most recent hike date
+  let newestRoute = null;
+  for (const r of _routes.values()) {
+    if (!newestRoute) { newestRoute = r; continue; }
+    const rDate  = r.startDate  ?? new Date(0);
+    const curDate = newestRoute.startDate ?? new Date(0);
+    if (rDate > curDate) newestRoute = r;
+  }
+  if (newestRoute) {
+    fitBounds(newestRoute.bounds, {
+      padding: { top: 120, bottom: 320, left: 140, right: 160 },
+      maxZoom: 12,
+    });
+    setActiveRoute(newestRoute.id);
   }
 }
 
@@ -253,7 +269,16 @@ export async function loadSharedRoutes(token) {
   if (!saved.length) return;
   await new Promise(resolve => onMapReady(resolve));
   for (const row of saved) {
-    await _processGPXText(row.gpx_content, row.id, row.color);
+    await _processGPXText(row.gpx_content, row.id, row.color, null, false, true);
+  }
+  let newestRoute = null;
+  for (const r of _routes.values()) {
+    if (!newestRoute) { newestRoute = r; continue; }
+    if ((r.startDate ?? new Date(0)) > (newestRoute.startDate ?? new Date(0))) newestRoute = r;
+  }
+  if (newestRoute) {
+    fitBounds(newestRoute.bounds, { padding: { top: 120, bottom: 320, left: 140, right: 160 }, maxZoom: 12 });
+    setActiveRoute(newestRoute.id);
   }
 }
 

@@ -85,6 +85,16 @@ export async function fetchUserPhotos() {
   return data ?? [];
 }
 
+export async function fetchPhotosForRoute(routeId) {
+  const { data, error } = await sb
+    .from('photos')
+    .select('id, route_id, name, lat, lon, photo_time, photo_data')
+    .eq('route_id', routeId)
+    .order('created_at', { ascending: true });
+  if (error) throw error;
+  return data ?? [];
+}
+
 export async function deletePhotosForRoute(routeId) {
   await sb.from('photos').delete().eq('route_id', routeId);
 }
