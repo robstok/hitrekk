@@ -95,6 +95,10 @@ export async function fetchPhotosForRoute(routeId) {
   return data ?? [];
 }
 
+export async function deletePhotoById(id) {
+  await sb.from('photos').delete().eq('id', id);
+}
+
 export async function deletePhotosForRoute(routeId) {
   await sb.from('photos').delete().eq('route_id', routeId);
 }

@@ -6,7 +6,7 @@
 import { processGPXFile, removeRoute, toggleRouteVisibility, setActiveRoute, getAllRoutes, getActiveRoute, renameRoute, setRouteMaxSpeed } from './routes.js';
 import { renderElevationChart, syncChartToMapHover, clearHoverState } from './elevation.js';
 import { setHikingLayerVisible, setSatelliteVisible, set3DMode, getMap, getHitLayerIds, updateMapHoverPoint } from './map.js';
-import { loadPhotos, loadPhotosForRoute, getPhotosForRoute, showLightbox } from './photos.js';
+import { loadPhotos, loadPhotosForRoute, deletePhoto, getPhotosForRoute, showLightbox } from './photos.js';
 
 /** Initialise all UI event bindings. Call once on startup. */
 export function initUI() {
@@ -521,9 +521,12 @@ export function renderRouteStats(route) {
     <div class="stats-section-label" style="margin-top: 8px">Photos</div>
     <div class="photo-strip" id="photo-strip-${route.id}">
       ${photos.map(p => `
-        <button class="photo-thumb" data-url="${p.url}" data-name="${_escHtml(p.name)}" title="${_escHtml(p.name)}">
-          <img src="${p.url}" alt="${_escHtml(p.name)}">
-        </button>
+        <div class="photo-thumb-wrap">
+          <button class="photo-thumb" data-url="${p.url}" data-name="${_escHtml(p.name)}" title="${_escHtml(p.name)}">
+            <img src="${p.url}" alt="${_escHtml(p.name)}">
+          </button>
+          <button class="photo-del" data-id="${p.id}" title="Delete photo" aria-label="Delete photo">&#x2715;</button>
+        </div>
       `).join('')}
     </div>
   ` : '';
@@ -575,6 +578,13 @@ export function renderRouteStats(route) {
 
   panel.querySelectorAll('.photo-thumb').forEach(btn => {
     btn.addEventListener('click', () => showLightbox(btn.dataset.url, btn.dataset.name));
+  });
+
+  panel.querySelectorAll('.photo-del').forEach(btn => {
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      deletePhoto(btn.dataset.id);
+    });
   });
 
   // Inline rename

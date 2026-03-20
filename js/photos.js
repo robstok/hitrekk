@@ -13,6 +13,7 @@ import {
   savePhotoRecord,
   fetchUserPhotos,
   fetchPhotosForRoute,
+  deletePhotoById as dbDeletePhoto,
   deletePhotosForRoute as dbDeletePhotosForRoute,
   deleteAllUserPhotos,
   getPhotosByShareToken,
@@ -160,6 +161,19 @@ export async function loadSharedPhotos(token) {
     _addMapMarker(photo);
     window.dispatchEvent(new CustomEvent('photos:updated', { detail: { routeId: row.route_id } }));
   }
+}
+
+/** Delete a single photo by id: removes marker, frees URL, deletes from DB. */
+export function deletePhoto(id) {
+  const idx = _photos.findIndex(p => p.id === id);
+  if (idx === -1) return;
+  const photo = _photos[idx];
+  photo.marker?.remove();
+  URL.revokeObjectURL(photo.url);
+  const routeId = photo.routeId;
+  _photos.splice(idx, 1);
+  dbDeletePhoto(id).catch(err => console.warn('Failed to delete photo from DB:', err));
+  window.dispatchEvent(new CustomEvent('photos:updated', { detail: { routeId } }));
 }
 
 /**
